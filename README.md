@@ -1,46 +1,122 @@
-# Getting Started with Create React App
+# Quiz Validator & Generator - Next.js 15
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A comprehensive Next.js application for generating AI-powered quiz prompts and validating quiz JSON for bootcamp Discord bots.
 
-## Available Scripts
+## Features
 
-In the project directory, you can run:
+- **Module Selection**: Choose from predefined modules or create custom modules
+- **LLM Provider Support**: Generate prompts for Claude, ChatGPT, or Gemini
+- **JSON Validation**: Comprehensive validation with detailed error reporting
+- **Answer Distribution Analysis**: Prevent student pattern exploitation
+- **Quiz Shuffling**: Randomize answer positions for security
+- **Excel Export**: Copy quiz data directly to Excel spreadsheets
+- **Refinement Prompts**: Generate prompts to fix validation errors
 
-### `npm start`
+## Tech Stack
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+- **Framework**: Next.js 15
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **Icons**: Lucide React
+- **Architecture**: Component-based with modular design
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+## Project Structure
 
-### `npm test`
+```
+quiz-validator-nextjs/
+├── app/
+│   ├── layout.tsx          # Root layout
+│   ├── page.tsx            # Main page component
+│   └── globals.css         # Global styles
+├── components/
+│   └── quiz/
+│       ├── ModuleSelector.tsx           # Module selection component
+│       ├── LLMProviderSelector.tsx      # LLM provider selection
+│       ├── PromptDisplay.tsx            # Prompt display component
+│       ├── ValidationResults.tsx        # Validation results display
+│       ├── AnswerDistribution.tsx       # Answer distribution analysis
+│       └── QuizExporter.tsx             # Quiz export functionality
+├── lib/
+│   ├── types.ts            # TypeScript interfaces
+│   ├── constants.ts        # Application constants
+│   ├── utils.ts            # Utility functions
+│   └── prompts.ts          # Prompt generation logic
+├── public/                 # Static assets
+├── package.json
+├── tsconfig.json
+├── tailwind.config.js
+├── postcss.config.js
+└── next.config.js
+```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## Getting Started
 
-### `npm run build`
+### Installation
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+```bash
+npm install
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### Development
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+```bash
+npm run dev
+```
 
-### `npm run eject`
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+### Build
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+```bash
+npm run build
+```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+### Production
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+```bash
+npm start
+```
 
-## Learn More
+## Usage
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+1. **Select Module**: Choose a predefined module or create a custom one
+2. **Choose LLM Provider**: Select Claude, ChatGPT, or Gemini
+3. **Generate Prompt**: Click to generate a system prompt
+4. **Copy Prompt**: Use the generated prompt with your LLM
+5. **Paste JSON**: Paste the LLM's JSON output
+6. **Validate**: Click validate to check for errors
+7. **Fix Errors**: Use refinement prompts if validation fails
+8. **Export**: Copy validated quiz to Excel
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## Components
+
+### ModuleSelector
+Allows selection from predefined modules or custom module input.
+
+### LLMProviderSelector
+Choose between Claude, ChatGPT, and Gemini for prompt generation.
+
+### PromptDisplay
+Displays the generated system prompt with copy functionality.
+
+### ValidationResults
+Shows validation status, errors, and warnings with improvement tracking.
+
+### AnswerDistribution
+Analyzes correct answer distribution to prevent pattern exploitation.
+
+### QuizExporter
+Provides quiz shuffling and Excel export functionality.
+
+## Validation Rules
+
+- **Question Length**: 30-200 characters
+- **Option Length**: 15-70 characters
+- **Option Balance**: ±5 character difference
+- **Explanation**: 12-18 words
+- **Time Limit**: 15-60 seconds
+- **Answer Distribution**: Each position 1-4 times
+
+## License
+
+MIT
