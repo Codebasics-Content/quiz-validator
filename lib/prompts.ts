@@ -704,6 +704,87 @@ ${llmInstructions}
 }
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+♿ ACCESSIBILITY BEST PRACTICES (Prefer Text Over Images)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**CRITICAL: Avoid Images for Code**
+- Code snippets should ALWAYS be in backticks, NOT images
+- Only use images for diagrams, architecture visualizations, or screenshots
+- Prefer text-based questions for better accessibility
+
+❌ AVOID:
+{
+  "question": "Debug this code shown in the image",
+  "imageUrl": "https://example.com/python-code.png"
+}
+
+✅ GOOD:
+{
+  "question": "Debug this code: \`def hello(): print('Hello')\`",
+  "imageUrl": ""
+}
+
+**DEFAULT VALUE:**
+- imageUrl = "" (empty string - avoid images when possible)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🧠 BLOOM'S TAXONOMY: COGNITIVE DIVERSITY REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**MANDATORY DISTRIBUTION across 10 questions:**
+- 1 question at "Remember" level (basic recall)
+- 2 questions at "Understand" level (explain, describe)
+- 3 questions at "Apply" level (use, implement, calculate)
+- 2 questions at "Analyze" level (debug, compare, investigate)
+- 1-2 questions at "Evaluate" level (assess, recommend, justify)
+- 0-1 questions at "Create" level (design, develop) - optional
+
+**Total: 10 questions with cognitive diversity**
+
+**BLOOM'S LEVELS EXPLAINED:**
+
+1. **Remember (1 question)** - Recall facts, terms, basic concepts
+   - Keywords: "What is...", "Define...", "List...", "Identify...", "Name..."
+   - Example: "What is the purpose of the @property decorator in Python?"
+   - Time: 20s
+
+2. **Understand (2 questions)** - Explain ideas or concepts
+   - Keywords: "Explain...", "Describe...", "Summarize...", "Interpret...", "Compare..."
+   - Example: "Explain the difference between loc and iloc in Pandas"
+   - Time: 20-25s
+
+3. **Apply (3 questions)** - Use information in new situations
+   - Keywords: "Calculate...", "Implement...", "Use...", "Demonstrate...", "Apply...", "Solve..."
+   - Example: "Calculate the accuracy for a model with 85 correct out of 100 predictions"
+   - Time: 25-30s
+
+4. **Analyze (2 questions)** - Draw connections, find patterns
+   - Keywords: "Analyze...", "Debug...", "Diagnose...", "Investigate...", "Examine...", "Why..."
+   - Example: "Debug this FastAPI code: what's the primary issue?"
+   - Time: 30s
+
+5. **Evaluate (1-2 questions)** - Justify decisions or choices
+   - Keywords: "Evaluate...", "Assess...", "Justify...", "Critique...", "Which is best...", "Recommend..."
+   - Example: "Which regularization technique is best for feature selection?"
+   - Time: 30-35s
+
+6. **Create (0-1 questions)** - Produce new or original work - OPTIONAL
+   - Keywords: "Design...", "Construct...", "Develop...", "Create...", "Formulate...", "Propose..."
+   - Example: "Design a RAG system architecture for document Q&A"
+   - Time: 35s
+
+**COGNITIVE DIVERSITY CHECKLIST:**
+□ Not all questions are "Remember" level (avoid pure memorization quiz)
+□ At least 2 questions require analysis or evaluation (higher-order thinking)
+□ Questions span multiple cognitive levels (prevents learning plateau)
+□ Distribution follows recommended pattern above
+
+**WHY THIS MATTERS:**
+- Pure recall quizzes don't assess deep understanding
+- Job-ready bootcamp grads need to apply, analyze, and evaluate
+- Diverse cognitive levels = better learning outcomes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📚 MODULE-SPECIFIC EXAMPLES FOR ${moduleName}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -890,6 +971,19 @@ This forces comprehension over binary guessing.
    □ No absolute language ("always", "never", "all", "none")
    □ No simple binary True/False questions
    □ Partial truths and context-dependent answers used
+
+✅ **Accessibility Best Practices:**
+   □ No code snippets in images (use backticks instead)
+   □ imageUrl = "" (prefer text-based questions)
+
+✅ **Bloom's Taxonomy Distribution:**
+   □ 1 question at "Remember" level (recall, define)
+   □ 2 questions at "Understand" level (explain, describe)
+   □ 3 questions at "Apply" level (calculate, implement)
+   □ 2 questions at "Analyze" level (debug, investigate)
+   □ 1-2 questions at "Evaluate" level (assess, recommend)
+   □ 0-1 questions at "Create" level (design) - optional
+   □ Total cognitive diversity achieved (not all memorization)
 
 ✅ **JSON Format:**
    □ minPoints = "" (empty string)
@@ -1299,6 +1393,30 @@ Absolute words to avoid in TRUE statements: always, never, all, none, every, mus
 }
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+♿ ACCESSIBILITY BEST PRACTICES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**Avoid images for code:**
+- Prefer code in backticks over code in images
+- Only use images for diagrams or visual concepts
+
+**Default:** imageUrl = ""
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🧠 BLOOM'S TAXONOMY: COGNITIVE DIVERSITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**RECOMMENDED DISTRIBUTION (if generating additional questions to reach 10):**
+- 1 "Remember" (recall, define) - 20s
+- 2 "Understand" (explain, describe) - 20-25s
+- 3 "Apply" (calculate, implement) - 25-30s
+- 2 "Analyze" (debug, investigate) - 30s
+- 1-2 "Evaluate" (assess, recommend) - 30-35s
+- 0-1 "Create" (design) - 35s - optional
+
+**Match user's cognitive level if they provide questions first**
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📚 REFERENCE EXAMPLES FOR ${moduleName}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -1344,6 +1462,13 @@ ${llmSpecificInstructions}
 □ minPoints = 0, maxPoints = 0
 □ correctAnswer is 1, 2, 3, or 4 (not 0 or 5+)
 □ imageUrl = "" (empty string)
+
+**ACCESSIBILITY:**
+□ No code in images (use backticks instead)
+
+**BLOOM'S TAXONOMY (if generating additional questions):**
+□ Cognitive diversity across Remember/Understand/Apply/Analyze/Evaluate levels
+□ Not all questions are memorization (varies difficulty)
 
 OUTPUT ONLY THE JSON. NO OTHER TEXT. NO MARKDOWN FENCES.`;
 };

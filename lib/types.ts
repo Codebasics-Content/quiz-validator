@@ -16,6 +16,8 @@ export interface Question {
   explanation: string;
   timeLimit: number;
   imageUrl: string;
+  imageAltText?: string; // Accessibility: alt text for images (WCAG 2.1)
+  bloomLevel?: string; // Cognitive level: remember, understand, apply, analyze, evaluate, create
   [key: string]: any;
 }
 

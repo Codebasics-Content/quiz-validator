@@ -352,6 +352,265 @@ export const calculateRecommendedTimeLimit = (
   return Math.min(Math.max(normalized, 20), 35);
 };
 
+// ============================================================================
+// ENHANCED VALIDATION FUNCTIONS (Added Nov 2025 - Phase 1 Improvements)
+// ============================================================================
+
+// Extract JSON from LLM output (handles markdown fences, preambles)
+export const extractJSONFromLLMOutput = (rawOutput: string): string => {
+  // Strategy 1: Try parsing as-is
+  try {
+    JSON.parse(rawOutput);
+    return rawOutput; // Already valid JSON
+  } catch {}
+
+  // Strategy 2: Extract from markdown json code fences
+  const markdownMatch = rawOutput.match(/```json\s*\n?([\s\S]*?)\n?```/);
+  if (markdownMatch) {
+    try {
+      JSON.parse(markdownMatch[1]);
+      return markdownMatch[1];
+    } catch {}
+  }
+
+  // Strategy 3: Extract from generic code fences
+  const codeMatch = rawOutput.match(/```\s*\n?([\s\S]*?)\n?```/);
+  if (codeMatch) {
+    try {
+      JSON.parse(codeMatch[1]);
+      return codeMatch[1];
+    } catch {}
+  }
+
+  // Strategy 4: Find first { to last }
+  const firstBrace = rawOutput.indexOf("{");
+  const lastBrace = rawOutput.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    const extracted = rawOutput.substring(firstBrace, lastBrace + 1);
+    try {
+      JSON.parse(extracted);
+      return extracted;
+    } catch {}
+  }
+
+  // Strategy 5: Give up, return original
+  return rawOutput;
+};
+
+// Bloom's Taxonomy keyword-based classification
+const BLOOM_KEYWORDS = {
+  remember: [
+    "define",
+    "list",
+    "name",
+    "identify",
+    "what is",
+    "who",
+    "when",
+    "where",
+    "recall",
+    "state",
+  ],
+  understand: [
+    "explain",
+    "describe",
+    "summarize",
+    "interpret",
+    "compare",
+    "contrast",
+    "classify",
+    "discuss",
+  ],
+  apply: [
+    "calculate",
+    "implement",
+    "use",
+    "demonstrate",
+    "apply",
+    "solve",
+    "show",
+    "execute",
+  ],
+  analyze: [
+    "analyze",
+    "debug",
+    "diagnose",
+    "investigate",
+    "examine",
+    "why",
+    "distinguish",
+    "differentiate",
+  ],
+  evaluate: [
+    "evaluate",
+    "assess",
+    "justify",
+    "critique",
+    "which is best",
+    "recommend",
+    "judge",
+    "prioritize",
+  ],
+  create: [
+    "design",
+    "construct",
+    "develop",
+    "create",
+    "formulate",
+    "propose",
+    "generate",
+    "build",
+  ],
+};
+
+export const classifyBloomLevel = (question: Question): string => {
+  const q = question.question.toLowerCase();
+
+  for (const [level, keywords] of Object.entries(BLOOM_KEYWORDS)) {
+    if (keywords.some((keyword) => q.includes(keyword))) {
+      return level;
+    }
+  }
+
+  return "understand"; // Default to mid-level
+};
+
+// Validate Bloom's Taxonomy distribution across quiz
+export const validateBloomDistribution = (questions: Question[]): string[] => {
+  const warnings: string[] = [];
+  const distribution: Record<string, number> = {
+    remember: 0,
+    understand: 0,
+    apply: 0,
+    analyze: 0,
+    evaluate: 0,
+    create: 0,
+  };
+
+  questions.forEach((q) => {
+    const level = q.bloomLevel || classifyBloomLevel(q);
+    distribution[level]++;
+  });
+
+  // Check if too many low-level questions (rote memorization)
+  if (distribution.remember > 3) {
+    warnings.push(
+      `⚠️ Too many low-level questions (${distribution.remember} Remember-level) - add higher-order thinking`,
+    );
+  }
+
+  // Check if missing higher levels (critical thinking)
+  if (distribution.analyze === 0 && distribution.evaluate === 0) {
+    warnings.push(
+      "⚠️ No higher-order thinking questions (Analyze/Evaluate) - add critical thinking questions",
+    );
+  }
+
+  // Check if only one cognitive level (no diversity)
+  const nonZeroLevels = Object.values(distribution).filter(
+    (count) => count > 0,
+  ).length;
+  if (nonZeroLevels <= 2) {
+    warnings.push(
+      "⚠️ Limited cognitive diversity - vary question difficulty levels",
+    );
+  }
+
+  return warnings;
+};
+
+// Validate accessibility (WCAG 2.1 Level AA compliance)
+export const validateAccessibility = (
+  question: Question,
+  qNum: number,
+): string[] => {
+  const warnings: string[] = [];
+
+  // Rule: Code should be text, not image (for better accessibility)
+  if (
+    question.imageUrl &&
+    question.imageUrl.trim() !== "" &&
+    (question.imageUrl.toLowerCase().includes("code") ||
+      question.question.toLowerCase().includes("this code") ||
+      question.question.toLowerCase().includes("debug this"))
+  ) {
+    warnings.push(
+      `⚠️ Q${qNum}: Code should be text with backticks, not image (better for accessibility)`,
+    );
+  }
+
+  return warnings;
+};
+
+// Validate semantic question quality
+export const validateSemanticQuality = (
+  question: Question,
+  qNum: number,
+): string[] => {
+  const warnings: string[] = [];
+
+  // Check 1: Question should be specific, not vague
+  const vaguePatterns = [
+    /what('s| is) (better|best|good)\b/i,
+    /which (one|option)\??$/i,
+    /^(how|why)\??$/i,
+  ];
+
+  vaguePatterns.forEach((pattern) => {
+    if (pattern.test(question.question.trim())) {
+      warnings.push(
+        `⚠️ Q${qNum}: Question may be too vague - add specific context`,
+      );
+    }
+  });
+
+  // Check 2: Options should not be nonsense (plausibility check)
+  const options = [
+    question.answer1,
+    question.answer2,
+    question.answer3,
+    question.answer4,
+  ];
+  const hasNonsense = options.some((opt) => {
+    const words = opt.split(/\s+/);
+    // Single word AND very short = likely nonsense
+    return words.length === 1 && opt.length < 6;
+  });
+
+  if (hasNonsense) {
+    warnings.push(
+      `⚠️ Q${qNum}: Some options may be nonsense distractors (too short/vague)`,
+    );
+  }
+
+  // Check 3: Explanation should provide reasoning
+  if (
+    !question.explanation
+      .toLowerCase()
+      .match(/\b(because|since|as|due to|reason)\b/)
+  ) {
+    warnings.push(
+      `⚠️ Q${qNum}: Explanation should include reasoning (use 'because', 'since', etc.)`,
+    );
+  }
+
+  // Check 4: Check for inconsistent grammatical structure
+  const startsWithVerb = (text: string) =>
+    /^(uses?|is|are|was|were|has|have|does|do|will|can|should)\b/i.test(text);
+  const startsWithNoun = (text: string) => /^(the|a|an|[A-Z])/i.test(text);
+
+  const verbCount = options.filter(startsWithVerb).length;
+  const nounCount = options.filter(startsWithNoun).length;
+
+  if (verbCount > 0 && verbCount < 4 && nounCount > 0 && nounCount < 4) {
+    warnings.push(
+      `⚠️ Q${qNum}: Options have inconsistent grammatical structure (mix of forms)`,
+    );
+  }
+
+  return warnings;
+};
+
 export const validateQuizJSON = (
   jsonInput: string,
   moduleName: string,
@@ -360,8 +619,11 @@ export const validateQuizJSON = (
   const warnings: string[] = [];
   let data: QuizData | null = null;
 
+  // ENHANCEMENT 1: Auto-extract JSON from LLM output (handles markdown fences)
+  const cleanedInput = extractJSONFromLLMOutput(jsonInput);
+
   try {
-    data = JSON.parse(jsonInput);
+    data = JSON.parse(cleanedInput);
   } catch (e) {
     errors.push(
       "❌ Invalid JSON format. Check for missing commas, brackets, or quotes.",
@@ -560,6 +822,26 @@ export const validateQuizJSON = (
     warnings.push(...validateModelReferences(data));
     warnings.push(...validateHypeWords(data));
     warnings.push(...validateCodeSyntax(data));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ENHANCED VALIDATION (Layer 5 - Nov 20, 2025 Phase 1 Improvements)
+  // Accessibility, Semantic Quality, Bloom's Taxonomy
+  // ═══════════════════════════════════════════════════════════════════
+  if (data && errors.length === 0) {
+    // Run per-question validations
+    data.questions.forEach((q: Question, idx: number) => {
+      const qNum = idx + 1;
+
+      // Accessibility best practices (warnings only)
+      warnings.push(...validateAccessibility(q, qNum));
+
+      // Semantic quality validation
+      warnings.push(...validateSemanticQuality(q, qNum));
+    });
+
+    // Run quiz-level validations
+    warnings.push(...validateBloomDistribution(data.questions));
   }
 
   const isValid = errors.length === 0;
