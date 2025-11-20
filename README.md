@@ -117,6 +117,54 @@ Provides quiz shuffling and Excel export functionality.
 - **Time Limit**: 15-60 seconds
 - **Answer Distribution**: Each position 1-4 times
 
+## Deployment
+
+### Deploy to Vercel (Recommended)
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/your-username/quiz-validator)
+
+#### Quick Deploy Steps:
+
+1. **Install Vercel CLI** (optional):
+```bash
+npm install -g vercel
+```
+
+2. **Deploy with CLI**:
+```bash
+cd quiz-validator
+vercel
+```
+
+3. **Or Deploy via Git**:
+   - Push your code to GitHub
+   - Import project in [Vercel Dashboard](https://vercel.com/dashboard)
+   - Vercel auto-detects Next.js configuration
+   - Deploy automatically on every push
+
+#### Configuration:
+
+The project includes `vercel.json` with optimized settings:
+- **Region**: US East (iad1) - change in vercel.json if needed
+- **Build Command**: `npm run build`
+- **Output Directory**: `.next`
+- **Node.js**: 18.x
+- **Security Headers**: Enabled (XSS, Frame Options, Content Type)
+
+#### Environment Variables:
+
+No environment variables required for MVP deployment. The app runs entirely client-side.
+
+#### Custom Domain:
+
+Add custom domain in Vercel Dashboard → Project Settings → Domains
+
+### Alternative Deployment Options
+
+- **Netlify**: Use `netlify.toml` (Next.js support)
+- **AWS Amplify**: Connect GitHub repo
+- **Docker**: Build with `node:18-alpine`
+
 ## License
 
 MIT
