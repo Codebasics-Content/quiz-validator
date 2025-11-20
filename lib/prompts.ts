@@ -1,3 +1,542 @@
+// Module-specific example questions demonstrating proper formatting
+const MODULE_EXAMPLES: Record<string, any[]> = {
+  Python: [
+    {
+      id: "PY-EX1",
+      question: "What does the `@property` decorator do in Python classes?",
+      answer1: "Converts a method into a read-only attribute accessor",
+      answer2: "Marks a method as static and callable without instance",
+      answer3: "Defines a private method that cannot be inherited",
+      answer4: "Creates a class variable shared across all instances",
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 1,
+      minPoints: 0,
+      maxPoints: 0,
+      explanation:
+        "Property decorator allows method access like an attribute while maintaining encapsulation and control.",
+      timeLimit: 20,
+      imageUrl: "",
+    },
+    {
+      id: "PY-EX2",
+      question:
+        "In Pandas, what's the key difference between `df.loc[]` and `df.iloc[]` for indexing?",
+      answer1:
+        "loc uses label-based indexing while iloc uses integer positions",
+      answer2: "loc is optimized for speed, iloc prioritizes memory efficiency",
+      answer3: "loc modifies the original DataFrame, iloc returns only a view",
+      answer4: "loc works with rows exclusively, iloc handles both axes",
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 1,
+      minPoints: 0,
+      maxPoints: 0,
+      explanation:
+        "loc accesses data by row/column labels while iloc uses integer positions regardless of index values.",
+      timeLimit: 25,
+      imageUrl: "",
+    },
+    {
+      id: "PY-EX3",
+      question:
+        "Debug this FastAPI code: `@app.get('/users') def get_users(): return users_list`. What's the primary issue?",
+      answer1:
+        "Missing async/await syntax for proper FastAPI async request handling",
+      answer2:
+        "Route decorator should use @app.route() instead of @app.get() method",
+      answer3: "Function must include request: Request as a required parameter",
+      answer4: "Missing return type annotation like -> List[User] for response",
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 1,
+      minPoints: 0,
+      maxPoints: 0,
+      explanation:
+        "FastAPI endpoints should use async def for proper asynchronous request handling, concurrency, and performance optimization.",
+      timeLimit: 30,
+      imageUrl: "",
+    },
+  ],
+
+  SQL: [
+    {
+      id: "SQL-EX1",
+      question:
+        "What SQL feature allows you to reuse a named query result within the same SELECT statement?",
+      answer1: "Common Table Expressions (CTEs) using the WITH clause syntax",
+      answer2: "Temporary tables created with CREATE TEMP TABLE statements",
+      answer3: "Subqueries nested directly in the FROM clause of queries",
+      answer4: "Stored procedures with OUTPUT parameters for result passing",
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 1,
+      minPoints: 0,
+      maxPoints: 0,
+      explanation:
+        "CTEs provide named temporary result sets that can be referenced multiple times within a single query.",
+      timeLimit: 20,
+      imageUrl: "",
+    },
+    {
+      id: "SQL-EX2",
+      question:
+        "Which window function calculates the running total of sales amounts ordered by transaction date?",
+      answer1: "SUM(amount) OVER (ORDER BY date ROWS UNBOUNDED PRECEDING)",
+      answer2: "RUNNING_SUM(amount) PARTITION BY date ORDER BY amount",
+      answer3: "CUMULATIVE_SUM(amount) GROUP BY date WITH ROLLUP clause",
+      answer4: "TOTAL(amount) OVER (PARTITION BY date ORDER BY amount)",
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 1,
+      minPoints: 0,
+      maxPoints: 0,
+      explanation:
+        "SUM with OVER clause and ROWS UNBOUNDED PRECEDING creates running totals by accumulating all previous rows.",
+      timeLimit: 30,
+      imageUrl: "",
+    },
+  ],
+
+  "Math/Stats": [
+    {
+      id: "STAT-EX1",
+      question:
+        "In hypothesis testing, what does a p-value of 0.03 indicate at α=0.05 significance level?",
+      answer1:
+        "Reject null hypothesis as evidence suggests statistical significance",
+      answer2: "Accept null hypothesis since p-value is below the threshold",
+      answer3: "Inconclusive result requiring larger sample size for clarity",
+      answer4: "Type I error occurred with 3% probability of false positive",
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 1,
+      minPoints: 0,
+      maxPoints: 0,
+      explanation:
+        "When p-value (0.03) is less than alpha (0.05), we reject null hypothesis favoring the alternative.",
+      timeLimit: 25,
+      imageUrl: "",
+    },
+    {
+      id: "STAT-EX2",
+      question:
+        "What's the primary difference between Pearson and Spearman correlation coefficients?",
+      answer1:
+        "Pearson measures linear relationships, Spearman measures monotonic relationships",
+      answer2:
+        "Pearson requires normal distribution, Spearman needs uniform distribution",
+      answer3:
+        "Pearson is for categorical data, Spearman is for continuous variables",
+      answer4:
+        "Pearson calculates covariance, Spearman calculates mutual information",
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 1,
+      minPoints: 0,
+      maxPoints: 0,
+      explanation:
+        "Pearson assumes linear relationship between variables while Spearman uses ranks to detect any monotonic association.",
+      timeLimit: 25,
+      imageUrl: "",
+    },
+  ],
+
+  "Machine Learning": [
+    {
+      id: "ML-EX1",
+      question:
+        "What is the primary purpose of L1 (Lasso) regularization in machine learning models?",
+      answer1:
+        "Feature selection by shrinking less important coefficients to zero",
+      answer2:
+        "Increasing model complexity to capture non-linear relationships",
+      answer3: "Normalizing features to have mean zero and unit variance",
+      answer4:
+        "Balancing class distributions in imbalanced classification tasks",
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 1,
+      minPoints: 0,
+      maxPoints: 0,
+      explanation:
+        "L1 regularization adds absolute value penalty causing sparse solutions where irrelevant features have zero coefficients.",
+      timeLimit: 25,
+      imageUrl: "",
+    },
+    {
+      id: "ML-EX2",
+      question:
+        "A model shows training accuracy of 98% but test accuracy of 72%. What's the problem?",
+      answer1:
+        "Overfitting - model memorized training data instead of learning patterns",
+      answer2: "Underfitting - model is too simple to capture data complexity",
+      answer3: "Data leakage - test data was accidentally used during training",
+      answer4:
+        "Class imbalance - accuracy metric is misleading for skewed data",
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 1,
+      minPoints: 0,
+      maxPoints: 0,
+      explanation:
+        "Large train-test accuracy gap indicates overfitting where model learned training noise rather than generalizable patterns.",
+      timeLimit: 20,
+      imageUrl: "",
+    },
+    {
+      id: "ML-EX3",
+      question:
+        "In Random Forest, which hyperparameter controls the number of features considered at each split?",
+      answer1:
+        "max_features parameter determines subset size for split evaluation",
+      answer2:
+        "n_estimators controls feature selection across all decision trees",
+      answer3: "max_depth limits the number of features used per tree level",
+      answer4: "min_samples_split defines feature count for creating new nodes",
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 1,
+      minPoints: 0,
+      maxPoints: 0,
+      explanation:
+        "max_features randomly selects feature subset at each split, introducing diversity and reducing correlation between trees.",
+      timeLimit: 30,
+      imageUrl: "",
+    },
+  ],
+
+  "Deep Learning": [
+    {
+      id: "DL-EX1",
+      question:
+        "What does the ReLU activation function output for negative input values?",
+      answer1: "Returns zero for all negative inputs (max(0, x) formula)",
+      answer2: "Returns small negative slope like 0.01x for leaky variant",
+      answer3: "Returns values between -1 and 0 using sigmoid transformation",
+      answer4: "Returns absolute value making all negative inputs positive",
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 1,
+      minPoints: 0,
+      maxPoints: 0,
+      explanation:
+        "Standard ReLU (Rectified Linear Unit) outputs zero for negative inputs and passes positive values unchanged.",
+      timeLimit: 20,
+      imageUrl: "",
+    },
+    {
+      id: "DL-EX2",
+      question:
+        "In PyTorch, what's the purpose of `model.eval()` before making predictions?",
+      answer1: "Disables dropout and batch normalization training behavior",
+      answer2: "Freezes all model weights to prevent gradient updates",
+      answer3: "Converts model to CPU mode for inference optimization",
+      answer4: "Enables automatic mixed precision for faster computation",
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 1,
+      minPoints: 0,
+      maxPoints: 0,
+      explanation:
+        "eval mode switches layers like dropout and batch norm to inference behavior ensuring deterministic predictions.",
+      timeLimit: 25,
+      imageUrl: "",
+    },
+    {
+      id: "DL-EX3",
+      question:
+        "Debug this PyTorch code: `loss = criterion(outputs, labels); loss.backward()`. What's missing for optimization?",
+      answer1:
+        "optimizer.step() must be called after backward() to update weights",
+      answer2: "model.train() should be called before the backward pass always",
+      answer3:
+        "loss.detach() is required before backward to avoid memory leaks",
+      answer4:
+        "torch.autograd.grad() must replace backward() for manual updates",
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 1,
+      minPoints: 0,
+      maxPoints: 0,
+      explanation:
+        "After computing gradients with backward, optimizer.step applies them to update model parameters via gradient descent.",
+      timeLimit: 30,
+      imageUrl: "",
+    },
+  ],
+
+  NLP: [
+    {
+      id: "NLP-EX1",
+      question:
+        "What is the primary advantage of using transformer architectures over RNNs for NLP tasks?",
+      answer1:
+        "Parallel processing of entire sequences via self-attention mechanism",
+      answer2:
+        "Smaller model size requiring less memory for training and inference",
+      answer3:
+        "Better handling of short sequences with limited context windows",
+      answer4:
+        "Automatic feature extraction without need for pre-trained embeddings",
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 1,
+      minPoints: 0,
+      maxPoints: 0,
+      explanation:
+        "Transformers process all tokens simultaneously using attention, unlike RNNs which process sequentially causing slower training.",
+      timeLimit: 25,
+      imageUrl: "",
+    },
+    {
+      id: "NLP-EX2",
+      question:
+        "In BERT fine-tuning, what does the [CLS] token represent in the output?",
+      answer1:
+        "Aggregated sequence representation used for classification tasks",
+      answer2: "Class label prediction probabilities for each input category",
+      answer3: "Contextual embedding of the first word in input sequence",
+      answer4: "Separator token marking boundaries between sentence pairs",
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 1,
+      minPoints: 0,
+      maxPoints: 0,
+      explanation:
+        "CLS token embedding captures whole sequence meaning making it ideal for sentence-level classification task outputs.",
+      timeLimit: 30,
+      imageUrl: "",
+    },
+  ],
+
+  "Gen AI": [
+    {
+      id: "GEN-EX1",
+      question:
+        "What is the primary purpose of vector databases in RAG (Retrieval Augmented Generation) systems?",
+      answer1:
+        "Store and retrieve semantically similar document embeddings efficiently",
+      answer2: "Cache LLM responses to reduce API costs and latency issues",
+      answer3:
+        "Store conversation history for maintaining context across sessions",
+      answer4: "Organize training data for fine-tuning large language models",
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 1,
+      minPoints: 0,
+      maxPoints: 0,
+      explanation:
+        "Vector databases enable fast similarity search on embeddings to retrieve relevant context for LLM prompts.",
+      timeLimit: 25,
+      imageUrl: "",
+    },
+    {
+      id: "GEN-EX2",
+      question:
+        "In LangChain, what does a 'chain' represent in the framework architecture?",
+      answer1:
+        "Sequence of operations connecting prompts, models, and parsers together",
+      answer2:
+        "Blockchain verification system for AI model output authentication",
+      answer3:
+        "Linear regression chain for predicting next token probabilities",
+      answer4:
+        "Error handling pipeline for catching and retrying failed requests",
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 1,
+      minPoints: 0,
+      maxPoints: 0,
+      explanation:
+        "Chains orchestrate multiple components in sequence creating reusable workflows from prompts to final outputs.",
+      timeLimit: 25,
+      imageUrl: "",
+    },
+    {
+      id: "GEN-EX3",
+      question:
+        "What's the key difference between zero-shot and few-shot prompting techniques?",
+      answer1:
+        "Few-shot provides example input-output pairs, zero-shot gives only task instructions",
+      answer2:
+        "Zero-shot requires fine-tuning, few-shot works with base models only",
+      answer3:
+        "Few-shot uses temperature=0, zero-shot requires higher temperature values",
+      answer4:
+        "Zero-shot is for classification, few-shot is for generation tasks",
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 1,
+      minPoints: 0,
+      maxPoints: 0,
+      explanation:
+        "Few-shot prompting includes demonstration examples helping the model learn the pattern while zero-shot relies on instructions.",
+      timeLimit: 30,
+      imageUrl: "",
+    },
+  ],
+
+  "General AI": [
+    {
+      id: "AI-EX1",
+      question:
+        "As of November 2025, which model is OpenAI's most capable reasoning model?",
+      answer1: "GPT-4o (optimized multimodal version released 2024)",
+      answer2: "GPT-5 with advanced agentic reasoning capabilities",
+      answer3: "O3 model specifically designed for complex reasoning",
+      answer4: "ChatGPT-5 Turbo with extended 500K context window",
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 1,
+      minPoints: 0,
+      maxPoints: 0,
+      explanation:
+        "GPT-4o (May 2024) remains OpenAI's flagship with multimodal capabilities; GPT-5 and O3 are not released.",
+      timeLimit: 20,
+      imageUrl: "",
+    },
+    {
+      id: "AI-EX2",
+      question:
+        "What distinguishes Claude 3.5 Sonnet from Claude 3 Opus in practical usage?",
+      answer1:
+        "Sonnet offers better speed-quality balance while Opus prioritizes accuracy",
+      answer2: "Opus is the faster model optimized for real-time applications",
+      answer3: "Sonnet supports 500K context, Opus limited to 200K tokens",
+      answer4: "Opus includes vision capabilities while Sonnet is text-only",
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 1,
+      minPoints: 0,
+      maxPoints: 0,
+      explanation:
+        "Claude 3.5 Sonnet balances performance and cost while Opus maximizes quality at higher latency and expense.",
+      timeLimit: 25,
+      imageUrl: "",
+    },
+  ],
+};
+
+// Helper function to format module-specific examples for display in prompts
+const getModuleExamples = (moduleName: string): string => {
+  const examples = MODULE_EXAMPLES[moduleName] || [];
+
+  if (examples.length === 0) {
+    return "No specific examples available for this module. Follow the general guidelines above.";
+  }
+
+  let output = "";
+  examples.forEach((example, index) => {
+    const difficultyLabel =
+      example.timeLimit === 20
+        ? "SIMPLE"
+        : example.timeLimit === 25
+          ? "MEDIUM"
+          : example.timeLimit === 30
+            ? "COMPLEX"
+            : "VERY COMPLEX";
+
+    output += `
+**EXAMPLE ${index + 1} [${difficultyLabel} - ${example.timeLimit}s]:**
+
+\`\`\`json
+{
+  "id": "${example.id}",
+  "question": "${example.question}",
+  "answer1": "${example.answer1}",
+  "answer2": "${example.answer2}",
+  "answer3": "${example.answer3}",
+  "answer4": "${example.answer4}",
+  "answer5": "",
+  "answer6": "",
+  "answer7": "",
+  "answer8": "",
+  "answer9": "",
+  "correctAnswer": ${example.correctAnswer},
+  "minPoints": 0,
+  "maxPoints": 0,
+  "explanation": "${example.explanation}",
+  "timeLimit": ${example.timeLimit},
+  "imageUrl": ""
+}
+\`\`\`
+
+**Note this example:**
+- Question length: ${example.question.length} characters (30-200 range ✓)
+- Option 1 length: ${example.answer1.length} chars
+- Option 2 length: ${example.answer2.length} chars
+- Option 3 length: ${example.answer3.length} chars
+- Option 4 length: ${example.answer4.length} chars
+- Length variance: ${Math.max(example.answer1.length, example.answer2.length, example.answer3.length, example.answer4.length) - Math.min(example.answer1.length, example.answer2.length, example.answer3.length, example.answer4.length)} chars (should be ≤40)
+- Explanation: ${example.explanation.split(" ").length} words (12-18 range ${example.explanation.split(" ").length >= 12 && example.explanation.split(" ").length <= 18 ? "✓" : "⚠️"})
+- Correct answer position: ${example.correctAnswer} (varies across questions ✓)
+`;
+  });
+
+  return output;
+};
+
 export const getModuleInstructions = (moduleName: string): string => {
   const instructions: Record<string, string> = {
     Python: `
@@ -163,6 +702,23 @@ ${llmInstructions}
     // ... 9 more questions (Q2-Q10)
   ]
 }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📚 MODULE-SPECIFIC EXAMPLES FOR ${moduleName}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**Study these concrete examples showing proper formatting for ${moduleName} questions:**
+
+${getModuleExamples(moduleName)}
+
+**What These Examples Demonstrate:**
+□ Question length: 30-200 characters (not placeholders like "Question text here")
+□ Option balance: All 4 options within ±5 characters of each other
+□ Module-specific syntax: Backticks for code, proper technical terminology
+□ Time limit variation: 20s (simple) → 25s (medium) → 30s (complex) → 35s (very hard)
+□ Explanation quality: Exactly 12-18 words, explains WHY answer is correct
+□ Correct answer distribution: Different positions (not always 1)
+□ Technical accuracy: Real libraries, verified facts, current models (Nov 2025)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🚨 CRITICAL: OPTION LENGTH BALANCING (PREVENTS STUDENT EXPLOITS)
@@ -622,6 +1178,46 @@ ${moduleInstructions}
    - Comparison operators: \`==\` for equality ✓, \`=\` ❌
    - No empty calls: \`function()\` ❌ (must have purpose)
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ COMMON MISTAKES: GOOD vs BAD EXAMPLES (LEARN FROM THESE!)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**MISTAKE 1: Hallucinated AI Models**
+❌ BAD: "Which model is most powerful: GPT-5, Claude-10, or Gemini-3?"
+✅ GOOD: "Which model is most powerful: GPT-4o, Claude 3.5 Sonnet, or Gemini 1.5 Pro?"
+→ Use only verified production models as of November 2025
+
+**MISTAKE 2: Marketing Hype Words**
+❌ BAD: "This revolutionary AI framework is a game-changing paradigm shift"
+✅ GOOD: "This AI framework introduces significant improvements to performance"
+→ Use factual, technical language without superlatives
+
+**MISTAKE 3: Unbalanced Option Lengths**
+❌ BAD:
+- answer1: "Yes" (3 chars)
+- answer2: "This is a very detailed explanation of the concept..." (52 chars)
+✅ GOOD:
+- answer1: "Supervised learning with labeled training data" (47 chars)
+- answer2: "Unsupervised clustering without label requirements" (52 chars)
+→ All options must be within ±5 characters of each other
+
+**MISTAKE 4: Correct Answer Always Longest**
+❌ BAD: correctAnswer is always the longest option (students will exploit this!)
+✅ GOOD: Vary which option is longest - sometimes make WRONG answer longest
+→ Breaks student length heuristic patterns
+
+**MISTAKE 5: Pattern-Exploitable Answer Distribution**
+❌ BAD: correctAnswer sequence = [1,1,1,1,1,2,2,3,3,4] (position 1 dominates!)
+✅ GOOD: correctAnswer sequence = [1,3,2,4,1,2,3,4,2,3] (balanced 2-3 per position)
+→ Each position must appear 2-3 times across 10 questions
+
+**MISTAKE 6: Non-Standard Time Limits**
+❌ BAD: timeLimit = 21, 23, 27, 31, 33 seconds (creates inconsistency)
+✅ GOOD: timeLimit = 20, 25, 30, or 35 seconds ONLY
+→ Use normalized intervals for consistency
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 **MANDATORY BALANCED DISTRIBUTION:**
 - Each position (1, 2, 3, 4) MUST appear **2-3 times** across 10 questions
 - Total must equal 10: [3,3,2,2] ✅ or [2,3,3,2] ✅
@@ -701,6 +1297,14 @@ Absolute words to avoid in TRUE statements: always, never, all, none, every, mus
     }
   ]
 }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📚 REFERENCE EXAMPLES FOR ${moduleName}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**Use these examples as reference for formatting (but preserve user's content):**
+
+${getModuleExamples(moduleName)}
 
 ${llmSpecificInstructions}
 
