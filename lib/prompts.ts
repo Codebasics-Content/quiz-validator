@@ -3,7 +3,6 @@ import {
   getModulePatternDescription,
   formatExamplesForPrompt,
   MODULE_PATTERNS_MAP,
-  type ModulePatterns,
 } from "./questionPatterns";
 
 // ============================================================================
