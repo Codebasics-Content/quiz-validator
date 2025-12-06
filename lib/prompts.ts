@@ -1,997 +1,1260 @@
-// Module-specific example questions demonstrating proper formatting
+import {
+  getRandomExamples,
+  getModulePatternDescription,
+  formatExamplesForPrompt,
+  MODULE_PATTERNS_MAP,
+  type ModulePatterns,
+} from "./questionPatterns";
+
+// ============================================================================
+// DYNAMIC CONTEXT ENGINEERING - Configuration Objects
+// ============================================================================
+
+/**
+ * Dynamic configuration - NO HARDCODED VALUES
+ * All values injected at runtime
+ */
+export interface QuizConfig {
+  questionsPerQuiz: number;
+  timeLimits: {
+    min: number;
+    max: number;
+    intervals: number[];
+  };
+  difficultyDistribution: {
+    hard: { count: number; timeRange: string };
+    medium: { count: number; timeRange: string };
+    easy: { count: number; timeRange: string };
+  };
+  optionConstraints: {
+    minWords: number;
+    maxWords: number;
+    explanationMinWords: number;
+    explanationMaxWords: number;
+  };
+}
+
+// Default configuration - can be overridden per module
+const DEFAULT_CONFIG: QuizConfig = {
+  questionsPerQuiz: 10,
+  timeLimits: {
+    min: 20,
+    max: 35,
+    intervals: [20, 25, 30, 35],
+  },
+  difficultyDistribution: {
+    hard: { count: 1, timeRange: "30-35s" },
+    medium: { count: 7, timeRange: "25-30s" },
+    easy: { count: 2, timeRange: "20-25s" },
+  },
+  optionConstraints: {
+    minWords: 1,
+    maxWords: 6,
+    explanationMinWords: 12,
+    explanationMaxWords: 18,
+  },
+};
+
+/**
+ * Get module-specific configuration
+ * Extracts from MODULE_PATTERNS_MAP dynamically
+ */
+const getModuleConfig = (moduleName: string): QuizConfig => {
+  const modulePatterns = MODULE_PATTERNS_MAP[moduleName];
+  if (!modulePatterns) return DEFAULT_CONFIG;
+
+  // Parse time ranges from patterns to determine distribution
+  const patterns = modulePatterns.patterns;
+  const hardPatterns = patterns.filter((p) => p.timeRange.includes("35") || p.timeRange.includes("30-35"));
+  const easyPatterns = patterns.filter((p) => p.timeRange.includes("20") || p.timeRange.includes("20-25"));
+
+  return {
+    ...DEFAULT_CONFIG,
+    difficultyDistribution: {
+      hard: { count: 1, timeRange: hardPatterns[0]?.timeRange || "30-35s" },
+      medium: { count: 7, timeRange: "25-30s" },
+      easy: { count: 2, timeRange: easyPatterns[0]?.timeRange || "20-25s" },
+    },
+  };
+};
+
+/**
+ * Extract themes from module patterns dynamically
+ */
+const extractThemesFromPatterns = (moduleName: string): string[] => {
+  const modulePatterns = MODULE_PATTERNS_MAP[moduleName];
+  if (!modulePatterns) return [];
+
+  return modulePatterns.patterns.map((p) => p.name);
+};
+
+/**
+ * Generate difficulty distribution string dynamically
+ */
+const generateDifficultyDistribution = (config: QuizConfig): string => {
+  const { hard, medium, easy } = config.difficultyDistribution;
+  return `- HARD (${hard.timeRange}): ${hard.count} question
+- MEDIUM (${medium.timeRange}): ${medium.count} questions
+- EASY (${easy.timeRange}): ${easy.count} questions`;
+};
+
+/**
+ * Generate pattern list from module patterns dynamically
+ */
+const generatePatternList = (moduleName: string): string => {
+  const modulePatterns = MODULE_PATTERNS_MAP[moduleName];
+  if (!modulePatterns) return "";
+
+  return modulePatterns.patterns
+    .map((p) => `- ${p.name} (${p.timeRange}): ${p.description}`)
+    .join("\n");
+};
+
+/**
+ * Generate theme distribution from examples dynamically
+ */
+const generateThemeDistribution = (moduleName: string): string => {
+  const modulePatterns = MODULE_PATTERNS_MAP[moduleName];
+  if (!modulePatterns) return "";
+
+  // Group examples by pattern to count themes
+  const patternCounts: Record<string, number> = {};
+  modulePatterns.examples.forEach((ex) => {
+    patternCounts[ex.pattern] = (patternCounts[ex.pattern] || 0) + 1;
+  });
+
+  // Generate distribution based on pattern variety
+  const themes = Object.keys(patternCounts);
+  if (themes.length === 0) return "";
+
+  return themes.slice(0, 9).map((theme, i) => `${i + 1}. ${theme}: 1-2 questions`).join("\n");
+};
+
+/**
+ * Generate verification checklist dynamically based on module
+ */
+const generateVerificationChecklist = (moduleName: string, config: QuizConfig): string => {
+  const baseChecklist = `[ ] IDs: Q1, Q2, Q3... Q${config.questionsPerQuiz} (plain numbers only)
+[ ] **EQUAL WORDS**: All 4 options in EACH question have SAME word count (${config.optionConstraints.minWords}-${config.optionConstraints.maxWords} words)
+[ ] **SAME TONE**: All options equally confident (no hedging giveaways)
+[ ] **LENGTH RANDOMIZED**: Correct answer NOT always longest
+[ ] Position distribution: Each 1-4 appears 2-3 times, NO consecutive repeats
+[ ] Topic diversity: All ${config.questionsPerQuiz} questions cover DIFFERENT topics/themes
+[ ] **COHERENCE**: Each question is ONE flowing thought (no orphan statements)
+[ ] Explanations: ${config.optionConstraints.explanationMinWords}-${config.optionConstraints.explanationMaxWords} words MAX
+[ ] **LEARNER-CENTRIC**: NO business/stakeholder language
+[ ] Time limits: ONLY ${config.timeLimits.intervals.join(", ")} seconds
+[ ] Numbers: correctAnswer, timeLimit are INTEGERS; minPoints, maxPoints are ""
+[ ] JSON: Single line, no breaks, no markdown fences`;
+
+  // Add module-specific checklist items
+  const modulePatterns = MODULE_PATTERNS_MAP[moduleName];
+  if (modulePatterns && (moduleName === "General AI" || moduleName === "Gen AI")) {
+    const themes = extractThemesFromPatterns(moduleName);
+    return `${baseChecklist}
+
+## ${moduleName.toUpperCase()} SPECIFIC:
+[ ] **DIFFICULTY DISTRIBUTION**: ${generateDifficultyDistribution(config)}
+[ ] **THEME COVERAGE**: ${themes.slice(0, 9).join(", ")}
+[ ] **NO DUPLICATE THEMES**: Each question covers a DIFFERENT theme`;
+  }
+
+  return baseChecklist;
+};
+
+/*
+ * PSYCHOLOGICAL PRINCIPLES APPLIED (Codebasics Standards):
+ *
+ * CORE PRINCIPLES:
+ * 1. DUAL-PROCESS THEORY (Kahneman): Force Type 2 analytical thinking, not Type 1 guessing
+ * 2. DESIRABLE DIFFICULTIES (Bjork): Productive struggle enhances long-term retention
+ * 3. PLAUSIBLE DISTRACTORS (Haladyna): Target specific misconceptions with "almost right" answers
+ * 4. ELABORATIVE INTERROGATION: Explanations answer "WHY" to strengthen memory encoding
+ * 5. TESTING EFFECT: Questions designed for retrieval practice, not recognition
+ *
+ * ADVANCED PRINCIPLES (Research-Backed):
+ * 6. HYPERCORRECTION EFFECT: High-confidence errors are MORE likely corrected after feedback
+ *    → Target confident misconceptions; surprising corrections stick better
+ * 7. PREDICTION ERROR FRAMEWORK: Discrepancy between expectation and outcome triggers deeper learning
+ *    → Make wrong options "feel right" then correct with clear principle
+ * 8. COGNITIVE LOAD THEORY: Reduce extraneous load, maximize germane load
+ *    → Keep stems positive (avoid NOT/EXCEPT), short options, one concept per question
+ * 9. DEEPER PROCESSING: Application questions > factual recall for transfer
+ *    → WHY/HOW questions beat WHAT questions for learning
+ * 10. GENERATION EFFECT: Actively generating answers > passive recognition
+ *    → Force reasoning, not pattern matching
+ *
+ * ANTI-PATTERN PRINCIPLES:
+ * - EQUAL WORD COUNT per question prevents length-based guessing
+ * - SHUFFLED POSITIONS prevent position-based patterns
+ * - POSITIVE FRAMING reduces cognitive load vs "NOT/EXCEPT" questions
+ *
+ * EXPLANATION FORMAT (Revision-Focused):
+ * - State the PRINCIPLE (not just the fact)
+ * - Connect to BROADER CONCEPT (aids transfer)
+ * - Include CONTRAST (what it's NOT and why)
+ */
+
 const MODULE_EXAMPLES: Record<string, any[]> = {
   Python: [
     {
       id: "PY-EX1",
-      question: "What does the `@property` decorator do in Python classes?",
-      answer1: "Converts a method into a read-only attribute accessor",
-      answer2: "Marks a method as static and callable without instance",
-      answer3: "Defines a private method that cannot be inherited",
-      answer4: "Creates a class variable shared across all instances",
+      // COGNITIVE TRAP: All options sound technical, but only one addresses the mechanism
+      // WORD COUNT: 3 words each | CORRECT ANSWER: Position 2
+      question: "A 10GB CSV causes MemoryError with list comprehension. Why would a generator expression fix this?",
+      answer1: "Compresses data automatically", // 3 words
+      answer2: "Yields items lazily", // 3 words - CORRECT
+      answer3: "Uses disk storage", // 3 words
+      answer4: "Enables parallel processing", // 3 words
       answer5: "",
       answer6: "",
       answer7: "",
       answer8: "",
       answer9: "",
-      correctAnswer: 1,
-      minPoints: 0,
-      maxPoints: 0,
+      correctAnswer: 2,
+      minPoints: "",
+      maxPoints: "",
       explanation:
-        "Property decorator allows method access like an attribute while maintaining encapsulation and control.",
-      timeLimit: 20,
+        "Generators yield items lazily because they compute on-demand, unlike lists storing all values upfront.",
+      timeLimit: 25,
       imageUrl: "",
+      note: "EQUAL WORDS: 3 words each | CORRECT: Position 2",
     },
     {
       id: "PY-EX2",
-      question:
-        "In Pandas, what's the key difference between `df.loc[]` and `df.iloc[]` for indexing?",
-      answer1:
-        "loc uses label-based indexing while iloc uses integer positions",
-      answer2: "loc is optimized for speed, iloc prioritizes memory efficiency",
-      answer3: "loc modifies the original DataFrame, iloc returns only a view",
-      answer4: "loc works with rows exclusively, iloc handles both axes",
+      // MISCONCEPTION TARGET: Beginners confuse decorators with inheritance
+      // WORD COUNT: 4 words each | CORRECT ANSWER: Position 4
+      question: "Why does `@staticmethod` NOT receive `self` or `cls` as first parameter?",
+      answer1: "Python removes unused parameters", // 4 words
+      answer2: "Inherits from different class", // 4 words
+      answer3: "Decorator strips first argument", // 4 words
+      answer4: "No instance context needed", // 4 words - CORRECT
       answer5: "",
       answer6: "",
       answer7: "",
       answer8: "",
       answer9: "",
-      correctAnswer: 1,
-      minPoints: 0,
-      maxPoints: 0,
+      correctAnswer: 4,
+      minPoints: "",
+      maxPoints: "",
       explanation:
-        "loc accesses data by row/column labels while iloc uses integer positions regardless of index values.",
+        "Static methods need no instance context because they are utility functions, unlike methods requiring self or cls.",
       timeLimit: 25,
       imageUrl: "",
+      note: "EQUAL WORDS: 4 words each | CORRECT: Position 4",
     },
     {
       id: "PY-EX3",
-      question:
-        "Debug this FastAPI code: `@app.get('/users') def get_users(): return users_list`. What's the primary issue?",
-      answer1:
-        "Missing async/await syntax for proper FastAPI async request handling",
-      answer2:
-        "Route decorator should use @app.route() instead of @app.get() method",
-      answer3: "Function must include request: Request as a required parameter",
-      answer4: "Missing return type annotation like -> List[User] for response",
+      // FORCES REASONING: Must understand async event loop, not just syntax
+      // WORD COUNT: 5 words each | CORRECT ANSWER: Position 1
+      question: "FastAPI: `async def fetch(): return requests.get(url)`. Why does this BLOCK despite async keyword?",
+      answer1: "Sync library blocks event loop", // 5 words - CORRECT
+      answer2: "Missing await before return statement", // 5 words
+      answer3: "Async only for FastAPI routes", // 5 words
+      answer4: "HTTP GET always blocks execution", // 5 words
       answer5: "",
       answer6: "",
       answer7: "",
       answer8: "",
       answer9: "",
       correctAnswer: 1,
-      minPoints: 0,
-      maxPoints: 0,
+      minPoints: "",
+      maxPoints: "",
       explanation:
-        "FastAPI endpoints should use async def for proper asynchronous request handling, concurrency, and performance optimization.",
+        "Sync libraries block the event loop because async requires library support. Use httpx or aiohttp instead.",
       timeLimit: 30,
       imageUrl: "",
+      note: "EQUAL WORDS: 5 words each | CORRECT: Position 1",
     },
   ],
 
   SQL: [
     {
       id: "SQL-EX1",
-      question:
-        "What SQL feature allows you to reuse a named query result within the same SELECT statement?",
-      answer1: "Common Table Expressions (CTEs) using the WITH clause syntax",
-      answer2: "Temporary tables created with CREATE TEMP TABLE statements",
-      answer3: "Subqueries nested directly in the FROM clause of queries",
-      answer4: "Stored procedures with OUTPUT parameters for result passing",
+      // MISCONCEPTION: Beginners think CTE = performance optimization
+      // WORD COUNT: 4 words each | CORRECT ANSWER: Position 3
+      question: "Your recursive CTE is slower than expected. Why does CTE NOT guarantee better performance than subquery?",
+      answer1: "CTEs disable query optimizer", // 4 words
+      answer2: "Recursive CTEs need indexes", // 4 words
+      answer3: "Same execution plan generated", // 4 words - CORRECT
+      answer4: "CTEs materialize to disk", // 4 words
       answer5: "",
       answer6: "",
       answer7: "",
       answer8: "",
       answer9: "",
-      correctAnswer: 1,
-      minPoints: 0,
-      maxPoints: 0,
+      correctAnswer: 3,
+      minPoints: "",
+      maxPoints: "",
       explanation:
-        "CTEs provide named temporary result sets that can be referenced multiple times within a single query.",
-      timeLimit: 20,
+        "CTEs improve readability, not speed, because most databases inline them like subqueries.",
+      timeLimit: 30,
       imageUrl: "",
+      note: "EQUAL WORDS: 4 words each | CORRECT: Position 3",
     },
     {
       id: "SQL-EX2",
-      question:
-        "Which window function calculates the running total of sales amounts ordered by transaction date?",
-      answer1: "SUM(amount) OVER (ORDER BY date ROWS UNBOUNDED PRECEDING)",
-      answer2: "RUNNING_SUM(amount) PARTITION BY date ORDER BY amount",
-      answer3: "CUMULATIVE_SUM(amount) GROUP BY date WITH ROLLUP clause",
-      answer4: "TOTAL(amount) OVER (PARTITION BY date ORDER BY amount)",
+      // FORCES REASONING: Must understand window function mechanics, not just syntax
+      // WORD COUNT: 5 words each | CORRECT ANSWER: Position 4
+      question: "DENSE_RANK() returns 1,1,2 for values 100,100,90. Why NOT 1,1,3 like RANK()?",
+      answer1: "Counts only distinct value entries", // 5 words
+      answer2: "RANK function is now deprecated", // 5 words
+      answer3: "Ignores NULL values during ranking", // 5 words
+      answer4: "No gaps after tie values", // 5 words - CORRECT
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 4,
+      minPoints: "",
+      maxPoints: "",
+      explanation:
+        "DENSE_RANK continues sequence without gaps because it counts distinct values, unlike RANK which skips.",
+      timeLimit: 25,
+      imageUrl: "",
+      note: "EQUAL WORDS: 5 words each | CORRECT: Position 4",
+    },
+    {
+      id: "SQL-EX3",
+      // COGNITIVE TRAP: All options are real SQL issues, but only one fits the symptom
+      // WORD COUNT: 3 words each | CORRECT ANSWER: Position 1
+      question: "Query returns NULL for `AVG(score)` even with valid data. Which scenario causes this?",
+      answer1: "WHERE filters everything", // 3 words - CORRECT
+      answer2: "Missing explicit CAST", // 3 words
+      answer3: "Wrong column type", // 3 words
+      answer4: "Missing GROUP BY", // 3 words
       answer5: "",
       answer6: "",
       answer7: "",
       answer8: "",
       answer9: "",
       correctAnswer: 1,
-      minPoints: 0,
-      maxPoints: 0,
+      minPoints: "",
+      maxPoints: "",
       explanation:
-        "SUM with OVER clause and ROWS UNBOUNDED PRECEDING creates running totals by accumulating all previous rows.",
+        "AVG returns NULL on empty sets because aggregates on zero rows produce NULL, not zero.",
       timeLimit: 30,
       imageUrl: "",
+      note: "EQUAL WORDS: 3 words each | CORRECT: Position 1",
     },
   ],
 
   "Math/Stats": [
     {
       id: "STAT-EX1",
-      question:
-        "In hypothesis testing, what does a p-value of 0.03 indicate at α=0.05 significance level?",
-      answer1:
-        "Reject null hypothesis as evidence suggests statistical significance",
-      answer2: "Accept null hypothesis since p-value is below the threshold",
-      answer3: "Inconclusive result requiring larger sample size for clarity",
-      answer4: "Type I error occurred with 3% probability of false positive",
+      // MISCONCEPTION: p-value is THE probability the hypothesis is true
+      // WORD COUNT: 4 words each | CORRECT ANSWER: Position 2
+      question: "p-value = 0.03. A colleague says there is 3% chance the null is true. Why is this interpretation WRONG?",
+      answer1: "Divide by sample size", // 4 words
+      answer2: "Assumes null already true", // 4 words - CORRECT
+      answer3: "Means 97% confidence level", // 4 words
+      answer4: "Only works one-tailed", // 4 words (fixed from 5)
       answer5: "",
       answer6: "",
       answer7: "",
       answer8: "",
       answer9: "",
-      correctAnswer: 1,
-      minPoints: 0,
-      maxPoints: 0,
+      correctAnswer: 2,
+      minPoints: "",
+      maxPoints: "",
       explanation:
-        "When p-value (0.03) is less than alpha (0.05), we reject null hypothesis favoring the alternative.",
-      timeLimit: 25,
+        "P-value assumes null is true because it measures P(data|H0), not P(H0|data).",
+      timeLimit: 30,
       imageUrl: "",
+      note: "EQUAL WORDS: 4 words each | CORRECT: Position 2",
     },
     {
       id: "STAT-EX2",
-      question:
-        "What's the primary difference between Pearson and Spearman correlation coefficients?",
-      answer1:
-        "Pearson measures linear relationships, Spearman measures monotonic relationships",
-      answer2:
-        "Pearson requires normal distribution, Spearman needs uniform distribution",
-      answer3:
-        "Pearson is for categorical data, Spearman is for continuous variables",
-      answer4:
-        "Pearson calculates covariance, Spearman calculates mutual information",
+      // FORCES REASONING: Must understand relationship, not just formula
+      // WORD COUNT: 3 words each | CORRECT ANSWER: Position 4
+      question: "95% CI is [45, 55]. If you increase sample size 4x, the new CI width is approximately?",
+      answer1: "Quarter original width", // 3 words
+      answer2: "Same width unchanged", // 3 words
+      answer3: "Double original width", // 3 words
+      answer4: "Half original width", // 3 words - CORRECT
       answer5: "",
       answer6: "",
       answer7: "",
       answer8: "",
       answer9: "",
-      correctAnswer: 1,
-      minPoints: 0,
-      maxPoints: 0,
+      correctAnswer: 4,
+      minPoints: "",
+      maxPoints: "",
       explanation:
-        "Pearson assumes linear relationship between variables while Spearman uses ranks to detect any monotonic association.",
+        "CI width is proportional to 1/sqrt(n), so quadrupling samples only halves the width.",
+      timeLimit: 30,
+      imageUrl: "",
+      note: "EQUAL WORDS: 3 words each | CORRECT: Position 4",
+    },
+    {
+      id: "STAT-EX3",
+      // COGNITIVE TRAP: All options are real statistical concerns
+      // WORD COUNT: 5 words each | CORRECT ANSWER: Position 3
+      question: "A/B test shows p=0.001 but lift=0.1%. Why is statistical significance misleading here?",
+      answer1: "Low p-value indicates overfitting", // 5 words
+      answer2: "Requires minimum five percent lift", // 5 words (fixed from 6)
+      answer3: "Effect too small for impact", // 5 words - CORRECT
+      answer4: "Low p-values mean bad data", // 5 words
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 3,
+      minPoints: "",
+      maxPoints: "",
+      explanation:
+        "Statistical significance differs from practical significance because large samples detect tiny, meaningless effects.",
       timeLimit: 25,
       imageUrl: "",
+      note: "EQUAL WORDS: 5 words each | CORRECT: Position 3",
     },
   ],
 
   "Machine Learning": [
     {
       id: "ML-EX1",
-      question:
-        "What is the primary purpose of L1 (Lasso) regularization in machine learning models?",
-      answer1:
-        "Feature selection by shrinking less important coefficients to zero",
-      answer2:
-        "Increasing model complexity to capture non-linear relationships",
-      answer3: "Normalizing features to have mean zero and unit variance",
-      answer4:
-        "Balancing class distributions in imbalanced classification tasks",
+      // MISCONCEPTION: Accuracy is always the right metric
+      // WORD COUNT: 4 words each | CORRECT ANSWER: Position 1
+      question: "Fraud detection: 99.9% accuracy, but catches 0 frauds. Why is accuracy MISLEADING here?",
+      answer1: "Imbalanced classes skew metric", // 4 words - CORRECT
+      answer2: "Accuracy needs balanced classes", // 4 words
+      answer3: "Fraud requires higher threshold", // 4 words
+      answer4: "Test set shuffled incorrectly", // 4 words
       answer5: "",
       answer6: "",
       answer7: "",
       answer8: "",
       answer9: "",
       correctAnswer: 1,
-      minPoints: 0,
-      maxPoints: 0,
+      minPoints: "",
+      maxPoints: "",
       explanation:
-        "L1 regularization adds absolute value penalty causing sparse solutions where irrelevant features have zero coefficients.",
+        "Accuracy misleads on imbalanced data because predicting all-majority achieves high accuracy without learning.",
       timeLimit: 25,
       imageUrl: "",
+      note: "EQUAL WORDS: 4 words each | CORRECT: Position 1",
     },
     {
       id: "ML-EX2",
-      question:
-        "A model shows training accuracy of 98% but test accuracy of 72%. What's the problem?",
-      answer1:
-        "Overfitting - model memorized training data instead of learning patterns",
-      answer2: "Underfitting - model is too simple to capture data complexity",
-      answer3: "Data leakage - test data was accidentally used during training",
-      answer4:
-        "Class imbalance - accuracy metric is misleading for skewed data",
+      // FORCES REASONING: Must understand bias-variance tradeoff
+      // WORD COUNT: 5 words each | CORRECT ANSWER: Position 2
+      question: "Train error: 2%, Test error: 25%, Validation error: 24%. Adding more training data will likely?",
+      answer1: "Significantly reduce all three errors", // 5 words
+      answer2: "Not help, needs regularization instead", // 5 words - CORRECT
+      answer3: "Only increase training error value", // 5 words
+      answer4: "Make validation match test exactly", // 5 words
       answer5: "",
       answer6: "",
       answer7: "",
       answer8: "",
       answer9: "",
-      correctAnswer: 1,
-      minPoints: 0,
-      maxPoints: 0,
+      correctAnswer: 2,
+      minPoints: "",
+      maxPoints: "",
       explanation:
-        "Large train-test accuracy gap indicates overfitting where model learned training noise rather than generalizable patterns.",
-      timeLimit: 20,
+        "Large train-test gap indicates high variance because the model memorizes training data instead of generalizing.",
+      timeLimit: 30,
       imageUrl: "",
+      note: "EQUAL WORDS: 5 words each | CORRECT: Position 2",
     },
     {
       id: "ML-EX3",
-      question:
-        "In Random Forest, which hyperparameter controls the number of features considered at each split?",
-      answer1:
-        "max_features parameter determines subset size for split evaluation",
-      answer2:
-        "n_estimators controls feature selection across all decision trees",
-      answer3: "max_depth limits the number of features used per tree level",
-      answer4: "min_samples_split defines feature count for creating new nodes",
+      // COGNITIVE TRAP: All options are real ML concepts
+      // WORD COUNT: 3 words each | CORRECT ANSWER: Position 3
+      question: "Why does standardizing features AFTER train-test split cause poor generalization?",
+      answer1: "Signal was removed", // 3 words
+      answer2: "Wrong split order", // 3 words
+      answer3: "Test data leaked", // 3 words - CORRECT
+      answer4: "Needs model retraining", // 3 words
       answer5: "",
       answer6: "",
       answer7: "",
       answer8: "",
       answer9: "",
-      correctAnswer: 1,
-      minPoints: 0,
-      maxPoints: 0,
+      correctAnswer: 3,
+      minPoints: "",
+      maxPoints: "",
       explanation:
-        "max_features randomly selects feature subset at each split, introducing diversity and reducing correlation between trees.",
+        "Scaling on all data leaks test statistics into training because it uses future information during fitting.",
       timeLimit: 30,
       imageUrl: "",
+      note: "EQUAL WORDS: 3 words each | CORRECT: Position 3",
     },
   ],
 
   "Deep Learning": [
     {
       id: "DL-EX1",
-      question:
-        "What does the ReLU activation function output for negative input values?",
-      answer1: "Returns zero for all negative inputs (max(0, x) formula)",
-      answer2: "Returns small negative slope like 0.01x for leaky variant",
-      answer3: "Returns values between -1 and 0 using sigmoid transformation",
-      answer4: "Returns absolute value making all negative inputs positive",
+      // MISCONCEPTION: Dropout is "random" so seems unreliable
+      // WORD COUNT: 4 words each | CORRECT ANSWER: Position 4
+      question: "Dropout randomly zeros neurons during training. Why does this IMPROVE generalization rather than hurt it?",
+      answer1: "Reduces model size significantly", // 4 words
+      answer2: "Acts as data augmentation", // 4 words
+      answer3: "Learns optimal neuron selection", // 4 words
+      answer4: "Prevents neuron co-adaptation dependency", // 4 words - CORRECT
       answer5: "",
       answer6: "",
       answer7: "",
       answer8: "",
       answer9: "",
-      correctAnswer: 1,
-      minPoints: 0,
-      maxPoints: 0,
+      correctAnswer: 4,
+      minPoints: "",
+      maxPoints: "",
       explanation:
-        "Standard ReLU (Rectified Linear Unit) outputs zero for negative inputs and passes positive values unchanged.",
-      timeLimit: 20,
+        "Dropout improves generalization because neurons cannot co-adapt, forcing redundant feature learning.",
+      timeLimit: 30,
       imageUrl: "",
+      note: "EQUAL WORDS: 4 words each | CORRECT: Position 4",
     },
     {
       id: "DL-EX2",
-      question:
-        "In PyTorch, what's the purpose of `model.eval()` before making predictions?",
-      answer1: "Disables dropout and batch normalization training behavior",
-      answer2: "Freezes all model weights to prevent gradient updates",
-      answer3: "Converts model to CPU mode for inference optimization",
-      answer4: "Enables automatic mixed precision for faster computation",
+      // FORCES REASONING: Must understand gradient flow, not just layer names
+      // WORD COUNT: 5 words each | CORRECT ANSWER: Position 1
+      question: "ResNet's skip connections solve vanishing gradients. WHY do direct additions help gradients flow?",
+      answer1: "Identity path preserves gradient magnitude", // 5 words - CORRECT
+      answer2: "Skip connections increase learning rate", // 5 words
+      answer3: "Addition amplifies small gradient values", // 5 words
+      answer4: "Residual blocks use special activations", // 5 words
       answer5: "",
       answer6: "",
       answer7: "",
       answer8: "",
       answer9: "",
       correctAnswer: 1,
-      minPoints: 0,
-      maxPoints: 0,
+      minPoints: "",
+      maxPoints: "",
       explanation:
-        "eval mode switches layers like dropout and batch norm to inference behavior ensuring deterministic predictions.",
-      timeLimit: 25,
+        "Skip connections preserve gradients because identity mapping provides direct gradient path, bypassing vanishing layers.",
+      timeLimit: 30,
       imageUrl: "",
+      note: "EQUAL WORDS: 5 words each | CORRECT: Position 1",
     },
     {
       id: "DL-EX3",
-      question:
-        "Debug this PyTorch code: `loss = criterion(outputs, labels); loss.backward()`. What's missing for optimization?",
-      answer1:
-        "optimizer.step() must be called after backward() to update weights",
-      answer2: "model.train() should be called before the backward pass always",
-      answer3:
-        "loss.detach() is required before backward to avoid memory leaks",
-      answer4:
-        "torch.autograd.grad() must replace backward() for manual updates",
+      // COGNITIVE TRAP: All are real PyTorch issues
+      // WORD COUNT: 3 words each | CORRECT ANSWER: Position 3
+      question: "PyTorch: Loss decreases but validation accuracy stuck at 50% (binary classification). Most likely cause?",
+      answer1: "Learning rate high", // 3 words
+      answer2: "Batch size small", // 3 words
+      answer3: "Wrong loss function", // 3 words - CORRECT
+      answer4: "Need more epochs", // 3 words
       answer5: "",
       answer6: "",
       answer7: "",
       answer8: "",
       answer9: "",
-      correctAnswer: 1,
-      minPoints: 0,
-      maxPoints: 0,
+      correctAnswer: 3,
+      minPoints: "",
+      maxPoints: "",
       explanation:
-        "After computing gradients with backward, optimizer.step applies them to update model parameters via gradient descent.",
+        "BCEWithLogitsLoss expects logits because it applies sigmoid internally. Double sigmoid causes meaningless predictions.",
       timeLimit: 30,
       imageUrl: "",
+      note: "EQUAL WORDS: 3 words each | CORRECT: Position 3",
     },
   ],
 
   NLP: [
     {
       id: "NLP-EX1",
-      question:
-        "What is the primary advantage of using transformer architectures over RNNs for NLP tasks?",
-      answer1:
-        "Parallel processing of entire sequences via self-attention mechanism",
-      answer2:
-        "Smaller model size requiring less memory for training and inference",
-      answer3:
-        "Better handling of short sequences with limited context windows",
-      answer4:
-        "Automatic feature extraction without need for pre-trained embeddings",
+      // MISCONCEPTION: More parameters = better model
+      // WORD COUNT: 4 words each | CORRECT ANSWER: Position 2
+      question: "DistilBERT has 40% fewer parameters than BERT but retains 97% performance. How is this possible?",
+      answer1: "Smaller models more efficient", // 4 words
+      answer2: "Distillation transfers learned knowledge", // 4 words - CORRECT
+      answer3: "Uses better training data", // 4 words
+      answer4: "Fewer parameters reduce overfitting", // 4 words
       answer5: "",
       answer6: "",
       answer7: "",
       answer8: "",
       answer9: "",
-      correctAnswer: 1,
-      minPoints: 0,
-      maxPoints: 0,
+      correctAnswer: 2,
+      minPoints: "",
+      maxPoints: "",
       explanation:
-        "Transformers process all tokens simultaneously using attention, unlike RNNs which process sequentially causing slower training.",
-      timeLimit: 25,
+        "Distillation trains students on soft probabilities because teacher's confidence distribution contains more information than hard labels.",
+      timeLimit: 30,
       imageUrl: "",
+      note: "EQUAL WORDS: 4 words each | CORRECT: Position 2",
     },
     {
       id: "NLP-EX2",
-      question:
-        "In BERT fine-tuning, what does the [CLS] token represent in the output?",
-      answer1:
-        "Aggregated sequence representation used for classification tasks",
-      answer2: "Class label prediction probabilities for each input category",
-      answer3: "Contextual embedding of the first word in input sequence",
-      answer4: "Separator token marking boundaries between sentence pairs",
+      // FORCES REASONING: Must understand tokenization deeply
+      // WORD COUNT: 5 words each | CORRECT ANSWER: Position 4
+      question: "BERT tokenizer splits unhappiness into [un, ##happiness]. Why the ## prefix?",
+      answer1: "Indicates suffix for grammar parsing", // 5 words
+      answer2: "Signals tokenizer to merge next", // 5 words
+      answer3: "Denotes rare low-frequency vocabulary items", // 5 words (fixed from 4)
+      answer4: "Marks continuation of previous token", // 5 words - CORRECT
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 4,
+      minPoints: "",
+      maxPoints: "",
+      explanation:
+        "The ## prefix marks word continuation because it distinguishes word-start tokens from mid-word subwords.",
+      timeLimit: 25,
+      imageUrl: "",
+      note: "EQUAL WORDS: 5 words each | CORRECT: Position 4",
+    },
+    {
+      id: "NLP-EX3",
+      // COGNITIVE TRAP: All are real fine-tuning considerations
+      // WORD COUNT: 3 words each | CORRECT ANSWER: Position 1
+      question: "Fine-tuning a smaller model on 500 samples gives worse results than zero-shot with a larger model. Most likely reason?",
+      answer1: "Overfits small dataset", // 3 words - CORRECT
+      answer2: "Model is outdated", // 3 words
+      answer3: "Needs GPU clusters", // 3 words
+      answer4: "Zero-shot always better", // 3 words
       answer5: "",
       answer6: "",
       answer7: "",
       answer8: "",
       answer9: "",
       correctAnswer: 1,
-      minPoints: 0,
-      maxPoints: 0,
+      minPoints: "",
+      maxPoints: "",
       explanation:
-        "CLS token embedding captures whole sequence meaning making it ideal for sentence-level classification task outputs.",
+        "Few-shot wins with limited data because fine-tuning on small datasets causes memorization instead of generalization.",
       timeLimit: 30,
       imageUrl: "",
+      note: "EQUAL WORDS: 3 words each | CORRECT: Position 1",
     },
   ],
 
   "Gen AI": [
     {
       id: "GEN-EX1",
-      question:
-        "What is the primary purpose of vector databases in RAG (Retrieval Augmented Generation) systems?",
-      answer1:
-        "Store and retrieve semantically similar document embeddings efficiently",
-      answer2: "Cache LLM responses to reduce API costs and latency issues",
-      answer3:
-        "Store conversation history for maintaining context across sessions",
-      answer4: "Organize training data for fine-tuning large language models",
+      // MISCONCEPTION: RAG = no hallucinations
+      // WORD COUNT: 5 words each | CORRECT ANSWER: Position 3
+      question: "Your RAG system still hallucinates despite retrieving correct documents. Why might this happen?",
+      answer1: "Larger models eliminate all hallucinations", // 5 words (improved distractor)
+      answer2: "Hallucinations are random and unpredictable", // 5 words
+      answer3: "Context ignored if contradicts training", // 5 words - CORRECT
+      answer4: "Retrieved documents were factually wrong", // 5 words (improved distractor)
       answer5: "",
       answer6: "",
       answer7: "",
       answer8: "",
       answer9: "",
-      correctAnswer: 1,
-      minPoints: 0,
-      maxPoints: 0,
+      correctAnswer: 3,
+      minPoints: "",
+      maxPoints: "",
       explanation:
-        "Vector databases enable fast similarity search on embeddings to retrieve relevant context for LLM prompts.",
-      timeLimit: 25,
+        "RAG still hallucinates because LLMs may ignore retrieved context when it conflicts with parametric knowledge.",
+      timeLimit: 30,
       imageUrl: "",
+      note: "EQUAL WORDS: 5 words each | CORRECT: Position 3",
     },
     {
       id: "GEN-EX2",
-      question:
-        "In LangChain, what does a 'chain' represent in the framework architecture?",
-      answer1:
-        "Sequence of operations connecting prompts, models, and parsers together",
-      answer2:
-        "Blockchain verification system for AI model output authentication",
-      answer3:
-        "Linear regression chain for predicting next token probabilities",
-      answer4:
-        "Error handling pipeline for catching and retrying failed requests",
+      // FORCES REASONING: Must understand chunking tradeoffs
+      // WORD COUNT: 4 words each | CORRECT ANSWER: Position 2
+      question: "RAG retrieves relevant chunks but answers miss key context. Chunk size is 512 tokens. What's likely wrong?",
+      answer1: "Exceeds model context window", // 4 words
+      answer2: "Context split across chunks", // 4 words - CORRECT
+      answer3: "Smaller chunks always better", // 4 words (improved - targets opposite misconception)
+      answer4: "Returns too many chunks", // 4 words
       answer5: "",
       answer6: "",
       answer7: "",
       answer8: "",
       answer9: "",
-      correctAnswer: 1,
-      minPoints: 0,
-      maxPoints: 0,
+      correctAnswer: 2,
+      minPoints: "",
+      maxPoints: "",
       explanation:
-        "Chains orchestrate multiple components in sequence creating reusable workflows from prompts to final outputs.",
-      timeLimit: 25,
+        "Small chunks improve precision but lose context because semantic meaning often spans multiple sentences.",
+      timeLimit: 30,
       imageUrl: "",
+      note: "EQUAL WORDS: 4 words each | CORRECT: Position 2",
     },
     {
       id: "GEN-EX3",
-      question:
-        "What's the key difference between zero-shot and few-shot prompting techniques?",
-      answer1:
-        "Few-shot provides example input-output pairs, zero-shot gives only task instructions",
-      answer2:
-        "Zero-shot requires fine-tuning, few-shot works with base models only",
-      answer3:
-        "Few-shot uses temperature=0, zero-shot requires higher temperature values",
-      answer4:
-        "Zero-shot is for classification, few-shot is for generation tasks",
+      // COGNITIVE TRAP: All are real considerations
+      // WORD COUNT: 3 words each | CORRECT ANSWER: Position 4
+      question: "LLM outputs vary wildly between runs at temperature=0.9. To get consistent outputs, which parameter change helps MOST?",
+      answer1: "Increase max_tokens parameter", // 3 words
+      answer2: "Add more examples", // 3 words
+      answer3: "Use larger model", // 3 words
+      answer4: "Lower temperature significantly", // 3 words - CORRECT
       answer5: "",
       answer6: "",
       answer7: "",
       answer8: "",
       answer9: "",
-      correctAnswer: 1,
-      minPoints: 0,
-      maxPoints: 0,
+      correctAnswer: 4,
+      minPoints: "",
+      maxPoints: "",
       explanation:
-        "Few-shot prompting includes demonstration examples helping the model learn the pattern while zero-shot relies on instructions.",
-      timeLimit: 30,
+        "Low temperature produces consistent outputs because it reduces randomness in token selection.",
+      timeLimit: 25,
       imageUrl: "",
+      note: "EQUAL WORDS: 3 words each | CORRECT: Position 4",
     },
   ],
 
   "General AI": [
     {
       id: "AI-EX1",
-      question:
-        "As of November 2025, which model is OpenAI's most capable reasoning model?",
-      answer1: "GPT-4o (optimized multimodal version released 2024)",
-      answer2: "GPT-5 with advanced agentic reasoning capabilities",
-      answer3: "O3 model specifically designed for complex reasoning",
-      answer4: "ChatGPT-5 Turbo with extended 500K context window",
+      // BOOTCAMP CONTEXT: Model selection for capstone projects
+      // UPSC PATTERN: ASSERTION-REASON | Tests WHY reasoning | CORRECT: Both true + explains
+      question: "Assertion: SLMs are preferred for edge deployment. Reason: They require less compute than LLMs. Is the assertion correct, and does the reason explain it?",
+      answer1: "Assertion false but reason true", // 5 words
+      answer2: "Both true and reason explains", // 5 words - CORRECT
+      answer3: "Assertion true but reason false", // 5 words
+      answer4: "Both true but reason unrelated", // 5 words
       answer5: "",
       answer6: "",
       answer7: "",
       answer8: "",
       answer9: "",
-      correctAnswer: 1,
-      minPoints: 0,
-      maxPoints: 0,
+      correctAnswer: 2,
+      minPoints: "",
+      maxPoints: "",
       explanation:
-        "GPT-4o (May 2024) remains OpenAI's flagship with multimodal capabilities; GPT-5 and O3 are not released.",
-      timeLimit: 20,
+        "SLMs suit edge deployment precisely because fewer parameters means lower compute—the reason directly explains the assertion.",
+      timeLimit: 35,
       imageUrl: "",
+      bloomLevel: "analyze",
+      note: "ASSERTION-REASON | CORRECT: Both true + explains | Position 2 | 35s",
     },
     {
       id: "AI-EX2",
-      question:
-        "What distinguishes Claude 3.5 Sonnet from Claude 3 Opus in practical usage?",
-      answer1:
-        "Sonnet offers better speed-quality balance while Opus prioritizes accuracy",
-      answer2: "Opus is the faster model optimized for real-time applications",
-      answer3: "Sonnet supports 500K context, Opus limited to 200K tokens",
-      answer4: "Opus includes vision capabilities while Sonnet is text-only",
+      // BOOTCAMP CONTEXT: RLHF understanding
+      // UPSC PATTERN: ASSERTION-REASON | CORRECT: Assertion true + reason FALSE
+      question: "Assertion: RLHF aligns models to human preferences. Reason: Humans directly edit the model weights. Is the assertion correct, and does the reason explain it?",
+      answer1: "Both true but reason unrelated", // 5 words
+      answer2: "Both assertion and reason false", // 5 words
+      answer3: "Both true and reason explains", // 5 words
+      answer4: "Assertion true but reason false", // 5 words - CORRECT
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 4,
+      minPoints: "",
+      maxPoints: "",
+      explanation:
+        "RLHF does align models, but humans provide preference rankings—they never touch the weights directly. The reward model handles that.",
+      timeLimit: 35,
+      imageUrl: "",
+      bloomLevel: "analyze",
+      note: "ASSERTION-REASON | CORRECT: Assertion true + reason FALSE | Position 4 | 35s",
+    },
+    {
+      id: "AI-EX3",
+      // BOOTCAMP CONTEXT: RAG vs Fine-tuning decision for projects
+      // UPSC PATTERN: HYPE VS REALITY | Tests critical evaluation
+      question: "RAG gets a lot of hype. Which of these claims actually holds up in benchmarks?",
+      answer1: "Eliminates all model hallucinations completely", // 5 words
+      answer2: "Always outperforms fine-tuned model approaches", // 5 words
+      answer3: "Requires no prompt optimization whatsoever", // 5 words
+      answer4: "Consistently grounds responses in documents", // 5 words - CORRECT
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 4,
+      minPoints: "",
+      maxPoints: "",
+      explanation:
+        "RAG does consistently ground responses by retrieving relevant docs first—but it doesn't eliminate hallucinations or beat fine-tuning in every case.",
+      timeLimit: 25,
+      imageUrl: "",
+      bloomLevel: "evaluate",
+      note: "HYPE VS REALITY | 5-word options | Position 4 | 25s",
+    },
+    {
+      id: "AI-EX4",
+      // BOOTCAMP CONTEXT: Career readiness - interview awareness
+      // UPSC PATTERN: CRITICAL EVALUATION | NATURAL CONVERSATIONAL PHRASING
+      question: "Your colleague insists fine-tuning always beats RAG for accuracy. What's missing from their reasoning?",
+      answer1: "Ignores data freshness requirements", // 4 words - CORRECT
+      answer2: "Correct for every possible case", // 5 words
+      answer3: "Wrong because RAG always wins", // 5 words
+      answer4: "Only wrong for larger models", // 5 words
       answer5: "",
       answer6: "",
       answer7: "",
       answer8: "",
       answer9: "",
       correctAnswer: 1,
-      minPoints: 0,
-      maxPoints: 0,
+      minPoints: "",
+      maxPoints: "",
       explanation:
-        "Claude 3.5 Sonnet balances performance and cost while Opus maximizes quality at higher latency and expense.",
-      timeLimit: 25,
+        "Neither universally wins—RAG handles dynamic data better while fine-tuning excels for stable domains. Context matters.",
+      timeLimit: 30,
       imageUrl: "",
+      bloomLevel: "evaluate",
+      note: "CRITICAL EVALUATION | Natural phrasing | Position 1 | 30s",
+    },
+    {
+      id: "AI-EX5",
+      // BOOTCAMP CONTEXT: Context window understanding
+      // UPSC PATTERN: ASSERTION-REASON | CORRECT: Both FALSE
+      question: "Assertion: Larger context windows eliminate hallucinations. Reason: More context means the model never forgets information. Is the assertion correct, and does the reason explain it?",
+      answer1: "Both true and reason explains", // 5 words
+      answer2: "Assertion true but reason false", // 5 words
+      answer3: "Both assertion and reason false", // 5 words - CORRECT
+      answer4: "Assertion false but reason true", // 5 words
+      answer5: "",
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: 3,
+      minPoints: "",
+      maxPoints: "",
+      explanation:
+        "Larger context doesn't eliminate hallucinations (assertion false), and models DO lose info in long contexts—the 'lost in the middle' effect (reason also false).",
+      timeLimit: 35,
+      imageUrl: "",
+      bloomLevel: "analyze",
+      note: "ASSERTION-REASON | CORRECT: Both FALSE | Position 3 | 35s",
     },
   ],
 };
 
-// Helper function to format module-specific examples for display in prompts
-const getModuleExamples = (moduleName: string): string => {
+// CONTEXT ENGINEERING: Dynamic random examples for diversity
+// Based on Karpathy/Anthropic principles: "smallest possible set of high-signal tokens"
+// Examples are RANDOMLY selected each time to create pattern diversity
+export const getModuleExamples = (moduleName: string): string => {
+  // Use new dynamic pattern system
+  if (MODULE_PATTERNS_MAP[moduleName]) {
+    const randomExamples = getRandomExamples(moduleName, 3); // Get 3 random diverse examples
+
+    if (randomExamples.length === 0) {
+      return "Follow the guidelines above.";
+    }
+
+    // Get pattern descriptions for the module
+    const patternDesc = getModulePatternDescription(moduleName);
+
+    // Format examples for prompt
+    const formattedExamples = formatExamplesForPrompt(randomExamples);
+
+    return `${patternDesc}\n\n**Randomly Selected Examples (for pattern diversity):**\n\n${formattedExamples}`;
+  }
+
+  // Fallback to old static examples if module not in new system
   const examples = MODULE_EXAMPLES[moduleName] || [];
 
   if (examples.length === 0) {
-    return "No specific examples available for this module. Follow the general guidelines above.";
+    return "Follow the guidelines above.";
   }
 
+  // Take only first 2 examples (pattern learning, not memorization)
+  const selectedExamples = examples.slice(0, 2);
+
   let output = "";
-  examples.forEach((example, index) => {
-    const difficultyLabel =
-      example.timeLimit === 20
-        ? "SIMPLE"
-        : example.timeLimit === 25
-          ? "MEDIUM"
-          : example.timeLimit === 30
-            ? "COMPLEX"
-            : "VERY COMPLEX";
-
+  selectedExamples.forEach((example, index) => {
+    // Compact inline JSON format - no verbose verification sections
     output += `
-**EXAMPLE ${index + 1} [${difficultyLabel} - ${example.timeLimit}s]:**
-
-\`\`\`json
-{
-  "id": "${example.id}",
-  "question": "${example.question}",
-  "answer1": "${example.answer1}",
-  "answer2": "${example.answer2}",
-  "answer3": "${example.answer3}",
-  "answer4": "${example.answer4}",
-  "answer5": "",
-  "answer6": "",
-  "answer7": "",
-  "answer8": "",
-  "answer9": "",
-  "correctAnswer": ${example.correctAnswer},
-  "minPoints": 0,
-  "maxPoints": 0,
-  "explanation": "${example.explanation}",
-  "timeLimit": ${example.timeLimit},
-  "imageUrl": ""
-}
-\`\`\`
-
-**Note this example:**
-- Question length: ${example.question.length} characters (30-200 range ✓)
-- Option 1 length: ${example.answer1.length} chars
-- Option 2 length: ${example.answer2.length} chars
-- Option 3 length: ${example.answer3.length} chars
-- Option 4 length: ${example.answer4.length} chars
-- Length variance: ${Math.max(example.answer1.length, example.answer2.length, example.answer3.length, example.answer4.length) - Math.min(example.answer1.length, example.answer2.length, example.answer3.length, example.answer4.length)} chars (should be ≤40)
-- Explanation: ${example.explanation.split(" ").length} words (12-18 range ${example.explanation.split(" ").length >= 12 && example.explanation.split(" ").length <= 18 ? "✓" : "⚠️"})
-- Correct answer position: ${example.correctAnswer} (varies across questions ✓)
+**Example ${index + 1}** (${example.answer1.split(/\s+/).length}-word options, position ${example.correctAnswer}):
+{"id":"${example.id}","question":"${example.question}","answer1":"${example.answer1}","answer2":"${example.answer2}","answer3":"${example.answer3}","answer4":"${example.answer4}","answer5":"","answer6":"","answer7":"","answer8":"","answer9":"","correctAnswer":${example.correctAnswer},"minPoints":"","maxPoints":"","explanation":"${example.explanation}","timeLimit":${example.timeLimit},"imageUrl":""}
 `;
   });
 
   return output;
 };
 
+// Dynamic date context
+const getDateContext = () => {
+  const now = new Date();
+  return {
+    year: now.getFullYear(),
+    month: now.toLocaleString("default", { month: "long" }),
+    day: now.getDate(),
+    quarter: `Q${Math.floor(now.getMonth() / 3) + 1}`,
+    weekAgo: new Date(
+      now.getTime() - 7 * 24 * 60 * 60 * 1000,
+    ).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }),
+    today: now.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }),
+  };
+};
+
+const date = getDateContext();
+
+/**
+ * DYNAMIC MODULE INSTRUCTIONS GENERATOR
+ * Generates instructions from MODULE_PATTERNS_MAP dynamically
+ * NO HARDCODED VALUES - everything comes from pattern definitions
+ */
 export const getModuleInstructions = (moduleName: string): string => {
-  const instructions: Record<string, string> = {
-    Python: `
-**PYTHON FOUNDATIONS - BOOTCAMP REQUIREMENTS:**
-- Focus: FastAPI, Streamlit, Pandas, decorators, generators, exception handling
-- Context: Bootcamp students building real-world data science projects
-- Code syntax: Use backticks - \`variable = value\` for inline, triple backticks for blocks
-- Realistic scenarios: API endpoints, data pipelines, automation scripts
-- Error messages: Actual Python errors (TypeError, KeyError, AttributeError)
-- Libraries: Only use pandas, numpy, streamlit, fastapi (no obscure packages)
-- Difficulty: Entry-level to intermediate data science applications`,
+  const config = getModuleConfig(moduleName);
+  const modulePatterns = MODULE_PATTERNS_MAP[moduleName];
 
-    SQL: `
-**SQL & DATABASES - BOOTCAMP REQUIREMENTS:**
-- Focus: CTEs, window functions, stored procedures, triggers, normalization
-- Context: Analytics queries for business intelligence and data engineering
-- Syntax: PostgreSQL/MySQL standard (no Oracle-specific features)
-- Realistic scenarios: Customer analytics, sales reports, data warehouse queries
-- Table names: Use realistic business contexts (customers, orders, products, transactions)
-- Difficulty: Practical queries bootcamp grads will write on day 1 of job`,
-
-    "Math/Stats": `
-**MATH & STATISTICS - BOOTCAMP REQUIREMENTS:**
-- Focus: Distributions, hypothesis testing, A/B testing, correlation, probability
-- Context: Applied statistics for data science, not theoretical math
-- Formulas: Use clear notation, explain in context of data analysis
-- Realistic scenarios: A/B test analysis, feature engineering, model evaluation
-- Avoid: Pure mathematical proofs or abstract theory
-- Difficulty: Conceptual understanding needed for ML work`,
-
-    "Machine Learning": `
-**MACHINE LEARNING - BOOTCAMP REQUIREMENTS:**
-- Focus: Regularization, ensemble methods, hyperparameters, ROC curves, cross-validation
-- Context: Supervised learning projects (classification, regression)
-- Libraries: scikit-learn, XGBoost, pandas (bootcamp standard stack)
-- Realistic scenarios: Customer churn, fraud detection, price prediction
-- Hyperparameters: Realistic values (learning_rate=0.001-0.1, not 100)
-- Projects: Tie to bootcamp capstone projects (healthcare, e-commerce, finance)
-- Difficulty: Job-ready ML practitioner level`,
-
-    "Deep Learning": `
-**DEEP LEARNING - BOOTCAMP REQUIREMENTS:**
-- Focus: PyTorch, CNNs, RNNs, transfer learning, optimizers, batch norm
-- Context: Computer vision and sequence modeling projects
-- Code: Correct PyTorch syntax (torch.nn, torch.optim)
-- Architectures: ResNet, LSTM, Transformer (real models bootcamp teaches)
-- Realistic scenarios: Image classification, sentiment analysis, time series
-- Projects: Align with bootcamp CV/NLP projects
-- Difficulty: Intermediate DL practitioner implementing standard architectures`,
-
-    NLP: `
-**NLP & TRANSFORMERS - BOOTCAMP REQUIREMENTS:**
-- Focus: BERT, Hugging Face transformers, embeddings, tokenization, fine-tuning
-- Context: Modern NLP for text classification, QA, sentiment analysis
-- Real models: bert-base-uncased, roberta-large, distilbert (from Hugging Face)
-- Code: Correct transformers library syntax (AutoModel, AutoTokenizer)
-- Realistic scenarios: Chatbots, document classification, entity extraction
-- Projects: RAG systems, fine-tuning for domain-specific tasks
-- Difficulty: Production NLP engineer using pre-trained models`,
-
-    "Gen AI": `
-**GENERATIVE AI (COURSE) - BOOTCAMP REQUIREMENTS:**
-- Focus: RAG, LangChain, ChromaDB, vector databases, prompts, LLM parameters
-- Context: Building production RAG applications and AI agents
-- Tools: LangChain, ChromaDB, Pinecone, OpenAI API (bootcamp teaches these)
-- Code: LangChain v0.1+ syntax (verify in docs)
-- Realistic scenarios: Document QA, customer support bots, knowledge bases
-- Parameters: temperature (0-1), top_p (0-1), context windows (realistic sizes)
-- Projects: RAG chatbots for bootcamp final projects
-- Difficulty: Junior Gen AI engineer building LLM applications
-- NO invented LangChain methods - verify all APIs in documentation`,
-
-    "General AI": `
-**GEN AI NEWS & TRENDS - BOOTCAMP REQUIREMENTS:**
-⚠️ CRITICAL: Use web_search tool for latest 2025 developments BEFORE writing
-- Search queries: "AI models 2025", "generative AI breakthroughs 2025", "AI safety 2025"
-- Context: Keep bootcamp students updated on industry trends for job market
-- Real models ONLY: Claude Sonnet 4.5, GPT-5, o3, Gemini 2.5/3 (from search results)
-- Focus areas: Reasoning models, AI agents, multimodal, RAG advancements, AI safety
-- Sources: Always cite - "According to [source], in [month] 2025..."
-- Career relevance: How trends affect Gen AI job roles bootcamp grads pursue
-- NO hallucinated features/models - everything must be verified from search
-- Difficulty: Industry awareness for bootcamp graduates entering job market`,
+  // Base instructions for non-pattern modules
+  const baseInstructions: Record<string, { topics: string; focus: string; forbidden: string; required: string }> = {
+    Python: {
+      topics: "FastAPI, Pandas, decorators, generators, async/await, exceptions",
+      focus: "WHY mechanisms work, not syntax recall",
+      forbidden: '"What is a decorator?" | Pure syntax | No reasoning',
+      required: "WHY GIL exists, HOW generators save memory, DEBUG TypeError scenarios",
+    },
+    SQL: {
+      topics: "CTEs, window functions (RANK/DENSE_RANK), JOINs, indexing, aggregates",
+      focus: "Query optimization reasoning, not syntax",
+      forbidden: '"What is SELECT?" | Basic syntax | No optimization reasoning',
+      required: "WHY CTE vs subquery, HOW window functions differ, DEBUG NULL scenarios",
+    },
+    "Math/Stats": {
+      topics: "Hypothesis testing, p-values, confidence intervals, A/B testing, distributions",
+      focus: "Interpretation and application, not formula recall",
+      forbidden: '"What is mean?" | Pure formulas | No interpretation',
+      required: "WHY p-value misinterpreted, HOW sample size affects CI, WHEN to reject null",
+    },
+    "Machine Learning": {
+      topics: "Regularization (L1/L2), ensemble methods, metrics (F1/ROC), cross-validation, bias-variance",
+      focus: "Trade-off reasoning and debugging",
+      forbidden: '"What is supervised learning?" | Definitions | No trade-offs',
+      required: "WHY L1 sparse, HOW ensemble reduces variance, DEBUG overfitting scenarios",
+    },
+    "Deep Learning": {
+      topics: "PyTorch, CNNs, RNNs/Transformers, dropout, batch norm, gradient flow",
+      focus: "Architecture reasoning and debugging",
+      forbidden: '"What is a neural network?" | Basic definitions | No mechanism reasoning',
+      required: "WHY vanishing gradients, HOW attention works, DEBUG loss not decreasing",
+    },
+    NLP: {
+      topics: "BERT, tokenization (WordPiece), embeddings, fine-tuning, Hugging Face",
+      focus: "Transformer mechanisms, not library syntax",
+      forbidden: '"What is NLP?" | Basic definitions | No mechanism reasoning',
+      required: "WHY subword tokenization, HOW BERT context, WHEN fine-tune vs zero-shot",
+    },
   };
 
-  return instructions[moduleName] || "";
+  // For modules with pattern definitions, generate dynamically
+  if (modulePatterns && (moduleName === "Gen AI" || moduleName === "General AI")) {
+    const patternList = generatePatternList(moduleName);
+    const themeDistribution = generateThemeDistribution(moduleName);
+    const difficultyDist = generateDifficultyDistribution(config);
+
+    // Dynamic context injection
+    const contextMap: Record<string, string> = {
+      "Gen AI": "Codebasics GenAI Bootcamp - students building LLM applications",
+      "General AI": "Codebasics GenAI & Data Science Bootcamp - students know Python, ML, DL basics",
+    };
+
+    const focusMap: Record<string, string> = {
+      "Gen AI": "System design trade-offs, debugging, and production decisions",
+      "General AI": "AI industry awareness to complement technical skills learned in bootcamp",
+    };
+
+    const distinctionMap: Record<string, string> = {
+      "Gen AI": "Technical implementation (code/architecture) - NOT General AI (industry awareness)",
+      "General AI": "NOT Gen AI (RAG/prompting code) - this is ANALYTICAL UNDERSTANDING",
+    };
+
+    const forbiddenMap: Record<string, string> = {
+      "Gen AI": '"What is an LLM?" | Basic definitions | No architecture reasoning',
+      "General AI": "Code snippets | Deep math | Overlap with Gen AI technical questions",
+    };
+
+    const requiredMap: Record<string, string> = {
+      "Gen AI": "WHY RAG hallucinates, HOW chunking affects retrieval, DEBUG pipeline issues",
+      "General AI": "WHY concepts matter, HOW trends affect careers, EVALUATE claims critically",
+    };
+
+    return `**CONTEXT:** ${contextMap[moduleName]}
+**FOCUS:** ${focusMap[moduleName]}
+**DISTINCTION:** ${distinctionMap[moduleName]}
+
+**⚠️ DIFFICULTY DISTRIBUTION (MANDATORY - per ${config.questionsPerQuiz} questions):**
+${difficultyDist}
+
+**⚠️ PATTERN TYPES (from module definition):**
+${patternList}
+
+**FORBIDDEN:** ${forbiddenMap[moduleName]}
+**REQUIRED:** ${requiredMap[moduleName]}
+
+${moduleName === "General AI" ? `**⚠️ RESEARCH VERIFICATION RULE:**
+- SEARCH THE INTERNET for current information
+- Use ONLY TIMELESS PRINCIPLES if cannot verify
+- FORBIDDEN: Specific model names from training data, benchmark scores, "latest" claims
+- Use relative terms: "current generation models", "recent research suggests"` : ""}`;
+  }
+
+  // For base modules, use simple template
+  const base = baseInstructions[moduleName];
+  if (base) {
+    return `**TOPICS:** ${base.topics}
+**FOCUS:** ${base.focus}
+**FORBIDDEN:** ${base.forbidden}
+**REQUIRED:** ${base.required}`;
+  }
+
+  return "";
 };
 
 export const getLLMSpecificInstructions = (provider: string): string => {
-  const instructions: Record<string, string> = {
-    claude: `
-**INSTRUCTIONS FOR CLAUDE (Anthropic):**
-- You can use <thinking> tags for complex reasoning before outputting JSON
-- After thinking, output ONLY the JSON, no other text
-- Claude handles long context well - detailed questions are fine
-- For General AI: Use web_search tool to find latest 2025 trends`,
-
-    gpt: `
-**INSTRUCTIONS FOR ChatGPT (OpenAI):**
-- System message: Instructions below
-- User message: "Generate 10 quiz questions for: [MODULE]"
-- Assistant response: ONLY JSON, no markdown code fences
-- GPT-5 recommended for educational content quality
-- For General AI: Use web search or browsing if available`,
-
-    gemini: `
-**INSTRUCTIONS FOR GEMINI (Google):**
-- Gemini 2.5/3 recommended for educational content
-- Use "thinking mode" for complex quiz generation
-- Output ONLY JSON, no explanations before/after
-- For General AI: Leverage Google Search integration for 2025 trends`,
-
-    other: `
-**INSTRUCTIONS FOR YOUR LLM:**
-- Ensure JSON output without markdown formatting
-- If it adds explanations, extract just the JSON
-- Test with simple example before full 10-question quiz
-- For General AI: Web search capability required for latest trends`,
-  };
-
-  return instructions[provider] || instructions.other;
+  return ""; // No provider-specific instructions needed
 };
 
 export const getSystemPrompt = (
   moduleName: string,
-  llmProvider: string,
 ): string => {
   const moduleInstructions = getModuleInstructions(moduleName);
-  const llmInstructions = getLLMSpecificInstructions(llmProvider);
-  const isGeneralAI = moduleName === "General AI";
+  const dateContext = getDateContext();
+  const config = getModuleConfig(moduleName);
 
-  return `You are generating 10 quiz questions for a bootcamp Discord bot quiz system.
-${isGeneralAI ? "\n⚠️ CRITICAL: Use web_search tool to find latest 2025 developments BEFORE generating questions!\n" : ""}
-**MODULE:** ${moduleName}
+  // Dynamic values from config
+  const { questionsPerQuiz, timeLimits, optionConstraints } = config;
+  const timeIntervalsStr = timeLimits.intervals.join(", ");
 
-${moduleInstructions}
+  /*
+   * CONTEXT ENGINEERING OPTIMIZED PROMPT
+   * Based on Karpathy/Anthropic 2025 principles:
+   * - Primacy effect: Critical rules at START
+   * - Recency effect: Verification at END
+   * - Minimum tokens: ~1800 vs ~5500 (67% reduction)
+   * - High signal density: Each concept stated ONCE
+   * - ALL VALUES INJECTED DYNAMICALLY - NO HARDCODING
+   */
+  return `# Generate ${questionsPerQuiz} Quiz Questions: ${moduleName}
 
-${llmInstructions}
+## ⚠️ MANDATORY FIRST STEP - WEB SEARCH REQUIRED ⚠️
+**TODAY'S DATE: ${dateContext.day} ${dateContext.month} ${dateContext.year}**
+**AUDIENCE: Codebasics Bootcamp Learners (Data Science/AI students)**
 
-**JSON FORMAT (EXACT - Discord bot database schema):**
-{
-  "module": "${moduleName}",
-  "questions": [
-    {
-      "id": "Q1",
-      "question": "Question text here (30-200 chars)",
-      "answer1": "Option 1 text (15-70 chars)",
-      "answer2": "Option 2 text (15-70 chars)",
-      "answer3": "Option 3 text (15-70 chars)",
-      "answer4": "Option 4 text (15-70 chars)",
-      "answer5": "",
-      "answer6": "",
-      "answer7": "",
-      "answer8": "",
-      "answer9": "",
-      "correctAnswer": 1,
-      "minPoints": "",
-      "maxPoints": "",
-      "explanation": "12-18 word explanation why this answer is correct",
-      "timeLimit": 30,
-      "imageUrl": ""
-    }
-    // ... 9 more questions (Q2-Q10)
-  ]
-}
+### 🔴 CRITICAL: SEARCH FOR LATEST MODELS RELEASED AS OF TODAY 🔴
+- Do NOT use older model names from your training data
+- SEARCH: "latest LLM models released ${dateContext.month} ${dateContext.year}"
+- SEARCH: "newest AI models ${dateContext.year}"
+- USE ONLY models that web search confirms are CURRENT and RELEASED
+- Models evolve rapidly - what was latest 6 months ago is outdated now
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-♿ ACCESSIBILITY BEST PRACTICES (Prefer Text Over Images)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BEFORE writing ANY question, you MUST:
+1. **WEB SEARCH** for 10+ DIFFERENT current ${moduleName} topics (${dateContext.month} ${dateContext.year})
+2. **SEARCH FOR LATEST MODEL NAMES** - Your training data has OLD model names
+   - Search "latest [company] model ${dateContext.month} ${dateContext.year}" for each provider
+   - Use ONLY model names found in TODAY's web search results
+   - Do NOT assume any model name from your training data is still current
+3. **ONE TOPIC PER QUESTION** - Never repeat same theme/tool across multiple questions
+4. **LEARNER-CENTRIC ONLY** - Questions must help STUDENTS understand concepts
+   - NOT business/stakeholder/deployment focused
+   - NOT "how would a company use this" or "for production systems"
+   - YES "why does this work", "what happens when", "how does this concept apply"
+5. **TEST UNDERSTANDING, NOT MEMORIZATION** - Every question must require REASONING
+   - NOT "what is X" or "define X" (pure recall)
+   - YES "why does X cause Y" or "what happens if X" (requires thinking)
+6. **NEVER HALLUCINATE** - Only reference tools/models/features you found in web search
+7. **NEVER CREATE VAGUE QUESTIONS** - Every question must reference specific verified tools
+8. **AVOID UNPROVEN QUANTIFICATION** - Don't claim statistics unless research-backed
+   - WRONG: "Why did safety practices decline by 40%?" (unproven claim)
+   - WRONG: "Studies show 70% accuracy improvement" (without citation)
+   - RIGHT: "Why might visible safety warnings decrease?" (observable trend)
+   - RIGHT: "What could explain reduced disclaimer frequency?" (factual observation)
+   - If not proven by researchers, don't state it as fact - it misleads learners
+9. **NEVER COPY** example questions below - create 100% NEW content based on web search
 
-**CRITICAL: Avoid Images for Code**
-- Code snippets should ALWAYS be in backticks, NOT images
-- Only use images for diagrams, architecture visualizations, or screenshots
-- Prefer text-based questions for better accessibility
+## CRITICAL CONSTRAINTS (MUST FOLLOW)
+1. **OPTIONS: ${optionConstraints.minWords}-${optionConstraints.maxWords} WORDS, EQUAL LENGTH PER QUESTION** - Anti-exploit rule!
+   - ALL 4 options in ONE question MUST have SAME word count
+   - Example Q1: all 3-word options | Q2: all 4-word options | Q3: all 2-word options
+   - This prevents learners from guessing based on "longest answer is correct"
+2. **SINGLE-LINE JSON** - Output JSON on ONE continuous line, no wrapping
+3. **NEVER SPLIT WORDS** - Keep field names intact (explanation, maxPoints, timeLimit)
+4. **CORRECT ANSWER: NOT ALWAYS LONGEST** - Vary which option is longest
 
-❌ AVOID:
-{
-  "question": "Debug this code shown in the image",
-  "imageUrl": "https://example.com/python-code.png"
-}
+## OPTION EXAMPLES (EQUAL WORDS PER QUESTION, 1-6 WORDS)
 
-✅ GOOD:
-{
-  "question": "Debug this code: \`def hello(): print('Hello')\`",
-  "imageUrl": ""
-}
+GOOD - All 4 options SAME word count (anti-exploit):
+**Q1 (all 3 words):**
+- "Reduces model variance" (3 words) ✓
+- "Prevents data overfitting" (3 words) ✓
+- "Increases training speed" (3 words) ✓
+- "Causes gradient explosion" (3 words) ✓
 
-**DEFAULT VALUE:**
-- imageUrl = "" (empty string - avoid images when possible)
+**Q2 (all 4 words):**
+- "Gradient vanishes in layers" (4 words) ✓
+- "Memory overflow occurs frequently" (4 words) ✓
+- "Caching improves query speed" (4 words) ✓
+- "Batch size too large" (4 words) ✓
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🧠 BLOOM'S TAXONOMY: COGNITIVE DIVERSITY REQUIREMENTS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BAD (vague/generic - NEVER DO THIS):
+- "It depends" ❌ (too vague)
+- "Better performance" ❌ (not specific)
+- "More efficient" ❌ (not specific)
+- "Not applicable" ❌ (lazy non-answer)
 
-**MANDATORY DISTRIBUTION across 10 questions:**
-- 1 question at "Remember" level (basic recall)
-- 2 questions at "Understand" level (explain, describe)
-- 3 questions at "Apply" level (use, implement, calculate)
-- 2 questions at "Analyze" level (debug, compare, investigate)
-- 1-2 questions at "Evaluate" level (assess, recommend, justify)
-- 0-1 questions at "Create" level (design, develop) - optional
+BAD (unequal lengths - EXPLOITABLE):
+- Q1: "Yes" (1), "No" (1), "Maybe sometimes" (2), "It depends on context" (4) ❌
+- Learners will pick longest/shortest as pattern!
 
-**Total: 10 questions with cognitive diversity**
+## ANTI-EXPLOIT RULES (CRITICAL - VIOLATIONS WILL FAIL VALIDATION)
+1. **EQUAL WORD COUNT PER QUESTION** (MOST IMPORTANT ANTI-EXPLOIT RULE):
+   - ALL 4 options in each question MUST have EXACTLY same word count
+   - Q1: all 3-word options | Q2: all 4-word options | Q3: all 2-word options (vary across questions)
+   - This PREVENTS learners from using "longest = correct" pattern
+   - Range: ${optionConstraints.minWords}-${optionConstraints.maxWords} words per option, but ALL SAME within one question
 
-**BLOOM'S LEVELS EXPLAINED:**
+2. **SAME TONE + RANDOMIZE ABSOLUTES** (NO GIVEAWAY PATTERNS):
+   - All options must sound EQUALLY confident and plausible
+   - WRONG: "Definitely causes errors" vs "Might sometimes cause issues" (hedging reveals wrong)
+   - WRONG: One option with jargon, others plain language
+   - RIGHT: All options use same confidence level, same technical depth
+   - **CRITICAL**: Randomize absolutes ("always", "all", "never", "completely") between TRUE and FALSE options
+   - 50% of questions: Use absolute in CORRECT answer (e.g., "Consistently retrieves context")
+   - 50% of questions: Use absolute in WRONG answers (e.g., "Always beats fine-tuning")
+   - This prevents "neutral = correct" exploitation
 
-1. **Remember (1 question)** - Recall facts, terms, basic concepts
-   - Keywords: "What is...", "Define...", "List...", "Identify...", "Name..."
-   - Example: "What is the purpose of the @property decorator in Python?"
-   - Time: 20s
+3. **CORRECT ANSWER LENGTH RANDOMIZATION** (ANTI-EXPLOIT):
+   - Correct answer must NOT always be longest
+   - Distribution: Shortest 2-3x, Middle 4-5x, Longest 2-3x across 10 questions
+   - Make some WRONG answers longer than correct answer
 
-2. **Understand (2 questions)** - Explain ideas or concepts
-   - Keywords: "Explain...", "Describe...", "Summarize...", "Interpret...", "Compare..."
-   - Example: "Explain the difference between loc and iloc in Pandas"
-   - Time: 20-25s
+4. **POSITION DISTRIBUTION - SHUFFLE LOGIC** (CRITICAL ANTI-EXPLOIT):
+   - MUST use ALL 4 positions (1,2,3,4) - NEVER skip any position
+   - Each position appears 2-3 times across ${questionsPerQuiz} questions
+   - **NEVER REPEAT** same position in consecutive questions
+   RIGHT: [1,3,2,4,1,3,4,2,3,4] ✓ | WRONG: [2,2,3,3,4,4,1,1,2,2] ❌
 
-3. **Apply (3 questions)** - Use information in new situations
-   - Keywords: "Calculate...", "Implement...", "Use...", "Demonstrate...", "Apply...", "Solve..."
-   - Example: "Calculate the accuracy for a model with 85 correct out of 100 predictions"
-   - Time: 25-30s
+5. **EXPLANATION LENGTH**: ${optionConstraints.explanationMinWords}-${optionConstraints.explanationMaxWords} words MAXIMUM (count before writing!)
 
-4. **Analyze (2 questions)** - Draw connections, find patterns
-   - Keywords: "Analyze...", "Debug...", "Diagnose...", "Investigate...", "Examine...", "Why..."
-   - Example: "Debug this FastAPI code: what's the primary issue?"
-   - Time: 30s
+6. **NO UNPROVEN CLAIMS** (FACTUAL ACCURACY):
+   - WRONG: "increased by 50%", "declined 3x" (unverified statistics)
+   - RIGHT: "What might explain X?" (observable trend, not fake numbers)
+   - Reference benchmarks by name: MMLU, HumanEval, GPQA
+   - Use qualitative terms: "growing", "increasingly" instead of fake percentages
 
-5. **Evaluate (1-2 questions)** - Justify decisions or choices
-   - Keywords: "Evaluate...", "Assess...", "Justify...", "Critique...", "Which is best...", "Recommend..."
-   - Example: "Which regularization technique is best for feature selection?"
-   - Time: 30-35s
+7. **TOPIC DIVERSITY** (${questionsPerQuiz} DIFFERENT TOPICS - NO REPETITION):
+   - Each question MUST cover a DIFFERENT topic/theme
+   - WRONG: Q1-Q3 all about same LLM (repetitive!)
+   - RIGHT: Q1 RAG, Q2 fine-tuning, Q3 tokenization (diverse)
 
-6. **Create (0-1 questions)** - Produce new or original work - OPTIONAL
-   - Keywords: "Design...", "Construct...", "Develop...", "Create...", "Formulate...", "Propose..."
-   - Example: "Design a RAG system architecture for document Q&A"
-   - Time: 35s
+## QUESTION COHERENCE (CRITICAL FOR READABILITY)
+1. **ONE FLOWING THOUGHT** - Question must read as single coherent sentence
+2. **LOGICAL LINK** - Setup must directly connect to what you're asking
+3. **NO ORPHAN STATEMENTS** - Never disconnected facts before question
 
-**COGNITIVE DIVERSITY CHECKLIST:**
-□ Not all questions are "Remember" level (avoid pure memorization quiz)
-□ At least 2 questions require analysis or evaluation (higher-order thinking)
-□ Questions span multiple cognitive levels (prevents learning plateau)
-□ Distribution follows recommended pattern above
+BAD: "[Fact A]. [Unrelated Fact B]. [Question about C]?" ❌
+GOOD: "When X happens, why does Y occur?" ✓
+GOOD: "Given that X, which of the following about Y is correct?" ✓
 
-**WHY THIS MATTERS:**
-- Pure recall quizzes don't assess deep understanding
-- Job-ready bootcamp grads need to apply, analyze, and evaluate
-- Diverse cognitive levels = better learning outcomes
+## DISCORD DISPLAY CONSTRAINTS (Questions appear on mobile!)
+- **Question:** 30-150 chars recommended (readable in 5-10 seconds)
+- **Options:** ${optionConstraints.minWords}-${optionConstraints.maxWords} words each (fits on button, quick to scan)
+- **Time:** ${timeLimits.min}-${timeLimits.max} seconds total (read + think + answer)
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📚 MODULE-SPECIFIC EXAMPLES FOR ${moduleName}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## JSON FORMAT (SINGLE LINE - NO BREAKS IN STRINGS)
+{"module":"${moduleName}","questions":[{"id":"Q1","question":"Question text here","answer1":"Short option","answer2":"Short option","answer3":"Short option","answer4":"Short option","answer5":"","answer6":"","answer7":"","answer8":"","answer9":"","correctAnswer":1,"minPoints":"","maxPoints":"","explanation":"Reason X occurs because Y affects Z.","timeLimit":25,"imageUrl":""}]}
 
-**Study these concrete examples showing proper formatting for ${moduleName} questions:**
+## FIELD REQUIREMENTS
+- id: "Q1" through "Q${questionsPerQuiz}" (NOT "GAI-Q1", "AI-Q1" - use plain Q1, Q2, etc.)
+- question: 30-200 chars, MUST include specific tool/syntax (see SPECIFICITY below)
+- answer1-4: ${optionConstraints.minWords}-${optionConstraints.maxWords} words, ALL SAME word count per question, MEANINGFUL (not vague)
+- answer5-9: "" (empty string)
+- correctAnswer: INTEGER 1-4 (not string)
+- timeLimit: INTEGER ${timeIntervalsStr} only
+- minPoints/maxPoints: "" (empty string, NOT 0)
+- explanation: ${optionConstraints.explanationMinWords}-${optionConstraints.explanationMaxWords} words MAX, MUST explain WHY using NATURAL causal language (because, since, so, thus, which means, that's why, the reason is, as, hence, this happens when, leading to). NO robotic repetition—vary your connectors!
+- imageUrl: "" (empty string)
 
+## SPECIFICITY REQUIREMENTS (LOW SCORES = VAGUE QUESTIONS)
+Every question MUST include at least ONE of: tool name, API parameter, code syntax, version number, specific metric
+
+VAGUE (FAILS - score 0-20):
+- "Why do AI models hallucinate?" (no specific tool/parameter)
+- "How does machine learning work?" (too generic)
+- "What causes overfitting?" (no concrete scenario)
+
+SPECIFIC (PASSES - score 50+):
+- "Why does [current LLM from web search] with temperature=0.9 produce varied outputs?" (tool + parameter)
+- "What causes a PyTorch model to show loss=NaN after epoch 5?" (tool + symptom)
+- "For sentiment classification, why might [model A from web search] outperform [model B]?" (specific models + task)
+
+## QUESTION DIVERSITY (Psychology-Based - Bloom's Taxonomy + Socratic Method)
+MUST USE AT LEAST 6 DIFFERENT QUESTION TYPES from this list:
+
+### Bloom's Taxonomy Stems (Higher-Order Thinking):
+1. **ANALYZE**: "Compare X and Y...", "What patterns emerge when...", "How does X differ from Y..."
+2. **EVALUATE**: "Which approach is more effective for...", "What criteria would you use to assess...", "Is X or Y better suited when..."
+3. **APPLY**: "Given this scenario, what would...", "How would you implement X to solve...", "Apply X principle to debug..."
+
+### Socratic Question Types (Critical Thinking):
+4. **CHALLENGE ASSUMPTIONS**: "Why does X NOT work when...", "What's wrong with assuming...", "Is it always true that..."
+5. **PROBE IMPLICATIONS**: "What happens if X fails...", "What are the consequences of...", "If X then what follows..."
+6. **EXAMINE EVIDENCE**: "What evidence shows that...", "How do you know X causes Y...", "What supports the claim that..."
+
+### Learner-Centric Stems (REQUIRED - NOT business/stakeholder focused):
+7. **SCENARIO-DEBUG**: "What causes code X to produce error Y?", "Why would running X with config Y fail?"
+8. **PREDICT-OUTPUT**: "What output does X produce when Y?", "What happens when X runs with parameter Y?"
+9. **MISCONCEPTION-TRAP**: "Why does assuming X often lead to problems?", "Why is the belief that X usually incorrect?"
+10. **COUNTER-INTUITIVE**: "Why does Y occur despite X?", "Why does Z happen instead of Y when X?"
+
+**⚠️ CONNECTED QUESTIONS (Critical - No orphan sentences):**
+- WRONG: "A student writes code X. What causes the error?" (Two disconnected parts)
+- RIGHT: "What causes code X to produce error Y?" (One unified thought)
+- WRONG: "Many assume X. Why is this wrong?" (Orphan question at end)
+- RIGHT: "Why is assuming X usually incorrect?" (Integrated thought)
+- WRONG: "Despite X, Y occurs. Why?" (Orphan "Why?")
+- RIGHT: "Why does Y occur despite X?" (Complete question)
+
+### FORBIDDEN Business-Oriented Stems (NEVER USE):
+- "How would a company implement..." ❌
+- "For production deployment..." ❌
+- "A business stakeholder asks..." ❌
+- "To meet enterprise requirements..." ❌
+- "For customer-facing applications..." ❌
+
+### REQUIRED MIX (${questionsPerQuiz} questions):
+- 2 ANALYZE/COMPARE questions
+- 2 EVALUATE/ASSESS questions
+- 2 DEBUG/SCENARIO questions
+- 2 PREDICT/CONSEQUENCE questions
+- 2 MISCONCEPTION/ASSUMPTION questions
+
+### FORBIDDEN (Never use these vague stems):
+- "What is X?" (too basic)
+- "How does X work?" (too generic)
+- "Explain X" (not specific)
+- "Define X" (pure memorization)
+
+## RESEARCH REQUIREMENT (REMINDER)
+You MUST have already performed WEB SEARCH before reaching this point.
+- All questions must be based on ${dateContext.month} ${dateContext.year} research
+- Use current tools, versions, and parameters from your web search
+- Questions about outdated tools/practices will FAIL validation
+
+${moduleInstructions ? `## MODULE CONTEXT\n${moduleInstructions}\n` : ""}
+## EXAMPLES (FORMAT ONLY - DO NOT COPY CONTENT)
 ${getModuleExamples(moduleName)}
 
-**What These Examples Demonstrate:**
-□ Question length: 30-200 characters (not placeholders like "Question text here")
-□ Option balance: All 4 options within ±5 characters of each other
-□ Module-specific syntax: Backticks for code, proper technical terminology
-□ Time limit variation: 20s (simple) → 25s (medium) → 30s (complex) → 35s (very hard)
-□ Explanation quality: Exactly 12-18 words, explains WHY answer is correct
-□ Correct answer distribution: Different positions (not always 1)
-□ Technical accuracy: Real libraries, verified facts, current models (Nov 2025)
+## FINAL VERIFICATION (COUNT BEFORE SUBMITTING)
+${generateVerificationChecklist(moduleName, config)}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚨 CRITICAL: OPTION LENGTH BALANCING (PREVENTS STUDENT EXPLOITS)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## JSON OUTPUT (ABSOLUTE REQUIREMENTS)
+1. START with { END with } - nothing else
+2. NO markdown fences (\`\`\`json)
+3. NO line breaks ANYWHERE - entire JSON must be ONE continuous line
+4. NO text before or after JSON
+5. Straight quotes " only (no curly quotes)
+6. Numbers as integers: correctAnswer:1 not "1"
+7. Must pass JSON.parse()
+8. NEVER wrap/split words - field names must stay intact:
+   CORRECT: "explanation":"..." | WRONG: "explan ation":"..."
+   CORRECT: "maxPoints":"" | WRONG: "max Points":""
 
-Students will exploit length patterns if you're not careful. Follow these rules EXACTLY:
-
-**RULE 1: ±5 CHARACTER BALANCE (MANDATORY)**
-- All 4 options MUST be within 5 characters of each other
-- Formula: max_length - min_length ≤ 5
-- Count every character including spaces and punctuation
-
-**RULE 2: CORRECT ANSWER MUST NOT BE LONGEST (CRITICAL)**
-- Students learn "pick the longest option" if correct is always longest
-- ALWAYS make a WRONG answer the longest option
-- This breaks the length heuristic students try to use
-
-**RULE 3: MINIMUM 15 CHARACTERS PER OPTION**
-- Every option must be ≥ 15 characters
-- Add qualifying context to short options
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🎯 ANTI-PATTERN REQUIREMENTS FOR ANSWER POSITIONS (CRITICAL!)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Students WILL try to game your quiz by detecting patterns. You MUST prevent this:
-
-**MANDATORY BALANCED DISTRIBUTION:**
-- Each position (1, 2, 3, 4) MUST appear **2-3 times** across 10 questions
-- Total must equal 10: [3,3,2,2] ✅ or [2,3,3,2] ✅ or [3,2,2,3] ✅
-- FORBIDDEN: [5,2,1,2] ❌ or [4,4,1,1] ❌ or [1,1,1,7] ❌
-
-**STRICT RULES:**
-✅ ALLOWED distributions:
-   - [3,3,2,2] - Perfect balance
-   - [2,3,3,2] - Slight middle bias
-   - [3,2,2,3] - Slight edge bias
-   - [2,2,3,3] - Sequential balance
-
-❌ FORBIDDEN (creates exploits):
-   - Any position appearing >4 times (position favoritism)
-   - Any position appearing <1 time (position exclusion)
-   - Perfectly alternating patterns: [1,2,3,4,1,2,3,4,1,2] (too predictable)
-
-**HOW TO VERIFY BEFORE SUBMITTING:**
-1. Count correctAnswer values: position 1 appears ___ times
-2. Count correctAnswer values: position 2 appears ___ times
-3. Count correctAnswer values: position 3 appears ___ times
-4. Count correctAnswer values: position 4 appears ___ times
-5. Ensure all counts are 2-3 (occasionally 1-4 acceptable if balanced)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⏱️ NORMALIZED TIME LIMIT ALLOCATION (USE ONLY [20, 25, 30, 35])
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-**CRITICAL: Use ONLY these 4 standard intervals: 20, 25, 30, 35 seconds**
-
-DO NOT use: 21s, 22s, 23s, 24s, 26s, 27s, 28s, 29s, 31s, 32s, 33s, 34s ❌
-
-**DECISION MATRIX:**
-
-| Question Type | Complexity | timeLimit | Examples |
-|---------------|------------|-----------|----------|
-| **Simple Recall** | What is X? Which of these? True/False | **20s** | "What is supervised learning?" |
-| **Medium** | Scenarios, comparisons, best practices | **25s** | "When should you use cross-validation?" |
-| **Complex** | Calculations, code analysis, debugging | **30s** | "Calculate accuracy: 85/100 samples" |
-| **Very Hard** | Multi-step debugging, edge cases | **35s** | "Debug code with model.fit error" |
-
-**COMPLEXITY DETECTION GUIDE:**
-- Has code blocks (backticks)? → minimum 25s, usually 30s
-- Has debugging/errors? → 30-35s
-- Has calculations/math? → 25-30s
-- Has "compare" or "vs"? → 25-30s
-- Simple "what is" or "which"? → 20-25s
-
-**MANDATORY DISTRIBUTION ACROSS 10 QUESTIONS:**
-- 2-3 questions at **20s** (simple concepts)
-- 3-4 questions at **25s** (medium difficulty)
-- 3-4 questions at **30s** (complex/code/math)
-- 1-2 questions at **35s** (debugging/edge cases)
-
-**FORBIDDEN:**
-❌ All questions at same time (e.g., all 30s)
-❌ Using non-standard times (21s, 28s, 31s, etc.)
-❌ Simple "What is..." question with 35s
-❌ Complex debugging question with 20s
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🎭 TRUE/FALSE ANTI-EXPLOIT TACTICS (CRITICAL FOR LEARNER INTEGRITY)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Students will exploit True/False patterns. You MUST use these tricks:
-
-**TRICK 1: ABSOLUTE LANGUAGE TRAPS**
-❌ BAD: "Machine learning always requires labeled data" (obviously false - "always")
-✅ GOOD: "Supervised learning typically requires labeled training data" (nuanced, harder to guess)
-
-**TRICK 2: PARTIAL TRUTHS**
-- Make FALSE options 80% correct with one critical flaw
-- Example: "Cross-validation splits data into training and testing sets" (FALSE - it's train/validation, not train/test for CV)
-
-**TRICK 3: DOUBLE NEGATIVES**
-- "It's incorrect to say that unsupervised learning never uses labels" (TRUE - tricky!)
-- Forces reading comprehension, not keyword matching
-
-**TRICK 4: CONTEXT-DEPENDENT ANSWERS**
-- "In scikit-learn's RandomForestClassifier, n_estimators=100 is the default" (TRUE in v0.22+, FALSE in earlier)
-- Add "in X version" or "as of Y" to avoid pure memorization
-
-**TRICK 5: MIX TRUE/FALSE POSITIONS**
-- Don't make all TRUE answers position 1 and FALSE answers position 2/3/4
-- Distribute True/False answers across all 4 positions
-- Include non-binary options when possible ("Both A and B", "None of these")
-
-**FORBIDDEN TRUE/FALSE PATTERNS:**
-❌ "Always", "Never", "All", "None" (students know these are usually false)
-❌ Binary True/False questions (too easy - use 4 options with nuance)
-❌ Obvious keyword matching ("ML" in question → pick option with "ML")
-
-**RECOMMENDED APPROACH:**
-Instead of True/False, use:
-- "Which statement is most accurate?"
-- "Which approach is recommended for X scenario?"
-- "What happens when Y occurs?"
-This forces comprehension over binary guessing.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ ENHANCED QUESTION TYPE DISTRIBUTION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-**REQUIRED MIX for 10 questions:**
-
-1. **Situational/Scenario** (2-3 questions) - Time: 25-30s
-2. **Fundamental Concepts** (2-3 questions) - Time: 20-25s
-3. **Problem Solving / Calculations** (2 questions) - Time: 30s
-4. **Code Debugging** (1-2 questions) - Time: 30-35s
-5. **Comparative Analysis** (1 question) - Time: 25-30s
-6. **Edge Cases / Consequences** (1 question) - Time: 25-30s
-
-**FINAL VERIFICATION CHECKLIST (MANDATORY - REVIEW BEFORE OUTPUT):**
-
-✅ **Answer Distribution (Count correctAnswer values):**
-   □ Position 1 appears 2-3 times (not 0, not >4)
-   □ Position 2 appears 2-3 times (not 0, not >4)
-   □ Position 3 appears 2-3 times (not 0, not >4)
-   □ Position 4 appears 2-3 times (not 0, not >4)
-   □ Total = 10 questions
-
-✅ **Time Limits (Only [20, 25, 30, 35] allowed):**
-   □ 2-3 questions at 20s (simple)
-   □ 3-4 questions at 25s (medium)
-   □ 3-4 questions at 30s (complex)
-   □ 1-2 questions at 35s (very hard)
-   □ NO non-standard times (21s, 28s, 31s, etc.)
-
-✅ **Option Balancing:**
-   □ All options within ±5 characters per question
-   □ Correct answer is NOT the longest option (make a wrong answer longest)
-   □ All options ≥15 characters
-
-✅ **Question Variety:**
-   □ At most 4 questions use "Your/You're"
-   □ All 6 question types represented (situational, fundamental, problem-solving, code-debug, comparative, edge-case)
-   □ No repetitive sentence starters
-   □ Technical terms varied across questions
-   □ Mix of personal and impersonal tones
-
-✅ **True/False Tricks:**
-   □ No absolute language ("always", "never", "all", "none")
-   □ No simple binary True/False questions
-   □ Partial truths and context-dependent answers used
-
-✅ **Accessibility Best Practices:**
-   □ No code snippets in images (use backticks instead)
-   □ imageUrl = "" (prefer text-based questions)
-
-✅ **Bloom's Taxonomy Distribution:**
-   □ 1 question at "Remember" level (recall, define)
-   □ 2 questions at "Understand" level (explain, describe)
-   □ 3 questions at "Apply" level (calculate, implement)
-   □ 2 questions at "Analyze" level (debug, investigate)
-   □ 1-2 questions at "Evaluate" level (assess, recommend)
-   □ 0-1 questions at "Create" level (design) - optional
-   □ Total cognitive diversity achieved (not all memorization)
-
-✅ **JSON Format:**
-   □ minPoints = "" (empty string)
-   □ maxPoints = "" (empty string)
-   □ answer5 through answer9 = "" (empty strings)
-   □ imageUrl = "" (empty string)
-
-OUTPUT ONLY THE JSON. NO OTHER TEXT. NO MARKDOWN FENCES.`;
+OUTPUT ENTIRE JSON ON A SINGLE LINE (NO WRAPPING):`;
 };
 
 // Categorize errors by type for targeted refinement
@@ -1073,61 +1336,67 @@ export const getRefinementPrompt = (
   // Hallucination-specific guidance (CRITICAL)
   if (hasHallucination) {
     specificGuidance += `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚨 CRITICAL: HALLUCINATION FIXES REQUIRED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+================================================================
+[!] CRITICAL: HALLUCINATION FIXES REQUIRED
+================================================================
 
 **HALLUCINATION ISSUES DETECTED:**
 ${categories.hallucination.map((issue, idx) => `${idx + 1}. ${issue}`).join("\n")}
 
 **FIX INSTRUCTIONS:**
-1. **Model References**: Replace hallucinated models with verified production models
-   - Valid: GPT-4, GPT-4o, Claude 3.5 Sonnet, Claude 3 Opus, Gemini 1.5 Pro/Flash
-   - Invalid: GPT-5, GPT-7, Claude-10, O4, O5
-   - Use web search if uncertain about current models
+1. **Model References**: Verify ALL model names via web search before using
+   - Do NOT assume any model exists - search to confirm
+   - Only use models you can verify exist via current web search results
+   - If uncertain, search "[model name] release date" to confirm
 
 2. **Hype Words**: Remove ALL marketing buzzwords
    - Forbidden: revolutionary, game-changing, groundbreaking, cutting-edge, paradigm shift
    - Replace with factual, technical language
 
 3. **Code Syntax**: Fix all syntax errors in code snippets
-   - Match brackets: \`[1, 2, 3]\` ✓
-   - Fix typos: \`print()\` not \`pirnt()\`
-   - Correct operators: \`==\` for equality, not \`=\`
+   - Match brackets: [1, 2, 3] [OK]
+   - Fix typos: print() not pirnt()
+   - Correct operators: == for equality, not =
 `;
   }
 
   // Pattern-specific guidance
   if (hasPattern) {
     specificGuidance += `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 PATTERN & DISTRIBUTION FIXES REQUIRED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+================================================================
+[PATTERN] PATTERN & DISTRIBUTION FIXES REQUIRED
+================================================================
 
 **DISTRIBUTION ISSUES DETECTED:**
 ${categories.pattern.map((issue, idx) => `${idx + 1}. ${issue}`).join("\n")}
 
 **FIX INSTRUCTIONS:**
 1. **Balanced Distribution**: Each position (1, 2, 3, 4) must appear 2-3 times
-   - Target: [3,3,2,2] ✅ or [2,3,3,2] ✅
+   - Target counts: [3,3,2,2] ✓ or [2,3,3,2] ✓
    - Forbidden: [5,2,1,2] ❌ or [4,4,1,1] ❌
 
-2. **No Consecutive Patterns**: Avoid 4+ consecutive same position answers
-   - Example: Position 1 appearing in Q1, Q2, Q3, Q4 ❌
+2. **NO Consecutive Repeats**: NEVER repeat same position in adjacent questions
+   - WRONG: Q1=2, Q2=2 ❌ (position 2 repeats)
+   - RIGHT: Q1=2, Q2=4, Q3=1, Q4=3 ✓ (all different consecutively)
 
-3. **Redistribution Strategy**:
-   - Identify over-represented positions (count >3)
-   - Change ONLY the correctAnswer field to balance
-   - Update options if needed to make new answer factually correct
+3. **Shuffle Pattern Examples**:
+   - [1,3,2,4,1,3,4,2,3,4] ✓ No consecutive repeats
+   - [2,1,4,3,1,4,2,3,1,4] ✓ Shuffled, balanced
+   - [2,2,3,3,4,4,1,1,2,2] ❌ Consecutive repeats
+
+4. **Redistribution Strategy**:
+   - Identify consecutive repeats and over-represented positions
+   - Swap option positions to break consecutive patterns
+   - Ensure all 4 positions used, each 2-3 times
 `;
   }
 
   // Timing-specific guidance
   if (hasTiming) {
     specificGuidance += `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⏱️ TIME LIMIT FIXES REQUIRED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+================================================================
+[TIME] TIME LIMIT FIXES REQUIRED
+================================================================
 
 **TIMING ISSUES DETECTED:**
 ${categories.timing.map((issue, idx) => `${idx + 1}. ${issue}`).join("\n")}
@@ -1143,39 +1412,39 @@ ${categories.timing.map((issue, idx) => `${idx + 1}. ${issue}`).join("\n")}
    - 35s: Advanced edge cases, architectural decisions
 
 3. **Normalization**: Round existing times to nearest standard interval
-   - 21s → 20s, 27s → 25s, 31s → 30s, 34s → 35s
+   - 21s -> 20s, 27s -> 25s, 31s -> 30s, 34s -> 35s
 `;
   }
 
   // Content-specific guidance
   if (hasContent) {
     specificGuidance += `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📝 CONTENT QUALITY FIXES REQUIRED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+================================================================
+[CONTENT] CONTENT QUALITY FIXES REQUIRED
+================================================================
 
 **CONTENT ISSUES DETECTED:**
 ${categories.content.map((issue, idx) => `${idx + 1}. ${issue}`).join("\n")}
 
 **FIX INSTRUCTIONS:**
-1. **Option Length Balance**:
-   - All options ≥15 characters (prevents "None" exploit)
-   - Length variance ≤40 characters (longest - shortest)
-   - Correct answer should NOT always be longest
+1. **EQUAL WORD COUNT PER QUESTION** (Anti-exploit):
+   - ALL 4 options in EACH question MUST have EXACTLY same word count
+   - Range: 1-6 words, vary across questions (Q1: all 3-word, Q2: all 4-word)
+   - NEVER vague: "Better performance", "More efficient", "It depends" ❌
 
 2. **Option Quality**:
-   - All options must be plausible distractors
+   - All options must be plausible distractors with specific meanings
    - Avoid obviously wrong options like "None" or "All of the above"
-   - Vary option lengths naturally across questions
+   - Each option must clearly explain a concept or reason
 `;
   }
 
   // Structural-specific guidance
   if (hasStructural) {
     specificGuidance += `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🏗️ STRUCTURAL FIXES REQUIRED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+================================================================
+[STRUCTURE] STRUCTURAL FIXES REQUIRED
+================================================================
 
 **STRUCTURAL ISSUES DETECTED:**
 ${categories.structural.map((issue, idx) => `${idx + 1}. ${issue}`).join("\n")}
@@ -1183,47 +1452,63 @@ ${categories.structural.map((issue, idx) => `${idx + 1}. ${issue}`).join("\n")}
 **FIX INSTRUCTIONS:**
 1. **Schema Compliance**:
    - answer5-answer9 = "" (empty strings)
-   - minPoints = 0, maxPoints = 0
+   - minPoints = "", maxPoints = "" (empty strings)
    - correctAnswer is 1, 2, 3, or 4 (not 0 or 5+)
    - imageUrl = "" (empty string unless provided)
 
 2. **Field Types**:
    - All text fields must be strings
-   - Numeric fields (correctAnswer, timeLimit, minPoints, maxPoints) must be numbers
+   - Numeric fields: correctAnswer, timeLimit must be numbers
+   - minPoints, maxPoints must be "" (empty strings, NOT numbers)
    - No missing required fields
 `;
   }
 
   return `You are refining an existing bootcamp quiz that has validation errors. Your task is to fix ONLY the identified issues while preserving the original questions and content intent.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 EXISTING QUIZ (DO NOT REGENERATE - ONLY FIX ERRORS)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+================================================================
+[QUIZ] EXISTING QUIZ (DO NOT REGENERATE - ONLY FIX ERRORS)
+================================================================
 
 ${JSON.stringify(existingQuiz, null, 2)}
 ${specificGuidance}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🎯 GENERAL REFINEMENT INSTRUCTIONS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+================================================================
+[TARGET] GENERAL REFINEMENT INSTRUCTIONS
+================================================================
 
 **CRITICAL: PRESERVE THE ORIGINAL INTENT**
 - DO NOT change question topics or learning objectives
-- DO NOT change correct answers' factual content (only position if needed for distribution)
+- DO NOT change correct answers factual content (only position if needed for distribution)
 - DO NOT rewrite questions from scratch
 - ONLY fix the specific validation errors listed above
 
 **PRIORITY ORDER (Fix in this sequence):**
-1. ❗ Hallucination issues (HIGHEST PRIORITY - factual accuracy)
-2. 🏗️ Structural issues (schema compliance)
-3. 📊 Pattern/distribution issues (balance correct answers)
-4. ⏱️ Timing issues (normalize to standard intervals)
-5. 📝 Content quality issues (option lengths, clarity)
+1. [!] Hallucination issues (HIGHEST PRIORITY - factual accuracy)
+2. [STRUCTURE] Structural issues (schema compliance)
+3. [PATTERN] Pattern/distribution issues (balance correct answers)
+4. [TIME] Timing issues (normalize to standard intervals)
+5. [CONTENT] Content quality issues (option lengths, clarity)
 
 **VERIFICATION BEFORE OUTPUT:**
-${hasHallucination ? "□ All hallucinated models replaced with verified production models\n□ All hype words removed\n□ All code syntax errors fixed\n" : ""}${hasPattern ? "□ Answer distribution balanced: [2-3, 2-3, 2-3, 2-3]\n□ No position appears >3 times\n□ No 4+ consecutive same position\n" : ""}${hasTiming ? "□ All time limits use only: 20s, 25s, 30s, 35s\n□ Times match question complexity\n" : ""}${hasContent ? "□ All options ≥15 characters\n□ Length variance ≤40 characters\n□ Correct answer NOT always longest\n" : ""}${hasStructural ? '□ Schema compliance: answer5-9="", minPoints=0, maxPoints=0\n□ correctAnswer is 1-4 only\n' : ""}□ Original question topics/content preserved
-□ No new errors introduced
+${hasHallucination ? "[ ] All hallucinated models replaced with verified production models\n[ ] All hype words removed\n[ ] All code syntax errors fixed\n" : ""}${hasPattern ? "[ ] Answer distribution balanced: each position 2-3 times\n[ ] NO consecutive repeats (Q1≠Q2, Q2≠Q3, etc.)\n[ ] All 4 positions used, shuffled pattern\n" : ""}${hasTiming ? "[ ] All time limits use only: 20s, 25s, 30s, 35s\n[ ] Times match question complexity\n" : ""}${hasContent ? "[ ] SIMPLE: 5-10 chars variance <=5 | CODING: 5-50 chars variance <=20\n[ ] Correct answer length RANDOMIZED (longest 2-3x, shortest 2-3x, middle 4-6x)\n" : ""}${hasStructural ? '[ ] Schema compliance: answer5-9="", minPoints="", maxPoints=""\n[ ] correctAnswer is 1-4 only\n' : ""}[ ] Original question topics/content preserved
+[ ] No new errors introduced
 
-OUTPUT ONLY THE CORRECTED JSON. NO MARKDOWN FENCES. NO EXPLANATIONS.`;
+================================================================
+JSON OUTPUT RULES (CRITICAL - FOLLOW EXACTLY)
+================================================================
+
+1. **RAW JSON ONLY**: Output starts with { and ends with } - nothing else
+2. **NO MARKDOWN**: Do NOT wrap in \`\`\`json or \`\`\` fences
+3. **NO EXPLANATIONS**: No text before or after the JSON object
+4. **STRAIGHT QUOTES ONLY**: Use " not curly quotes like " or "
+5. **NO SPECIAL CHARACTERS**: Forbidden in all text fields:
+   - NO: em-dash (--), curly quotes (""), ellipsis (...)
+   - NO: unicode symbols, emojis, special math symbols
+   - USE: hyphen (-), straight quotes ("), three periods (...)
+6. **ESCAPE PROPERLY**: Use \\" for quotes inside strings, \\\\ for backslashes
+7. **VALID JSON**: Must pass JSON.parse() - no trailing commas, proper brackets
+
+OUTPUT RAW JSON ONLY. START WITH { END WITH }`;
 };
 
 export const getManualQuestionAssistPrompt = (
@@ -1236,90 +1521,103 @@ export const getManualQuestionAssistPrompt = (
 
   return `You are converting manually collected questions into a properly formatted bootcamp quiz JSON.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📝 USER-PROVIDED QUESTIONS (PRESERVE THESE EXACTLY)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+================================================================
+[INPUT] USER-PROVIDED QUESTIONS (PRESERVE THESE EXACTLY)
+================================================================
 
 ${userQuestions}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🎯 YOUR TASK: CONVERT TO QUIZ JSON FORMAT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+================================================================
+[TASK] CONVERT TO QUIZ JSON FORMAT
+================================================================
 
 **CRITICAL RULES:**
 1. **PRESERVE USER CONTENT**: Use the exact questions provided above - DO NOT rewrite or change topics
-2. **ONLY ADD WHAT'S MISSING**: If user provided 5 questions, generate 5 more to reach 10 total
-3. **MATCH USER'S STYLE**: New questions should match difficulty/style of user's questions
+2. **ONLY ADD WHATS MISSING**: If user provided 5 questions, generate 5 more to reach 10 total
+3. **MATCH USERS STYLE**: New questions should match difficulty/style of users questions
 4. **NO ASSUMPTIONS**: If a question is unclear, keep it as-is (user will refine later)
 
 ${moduleInstructions}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📐 TECHNICAL REQUIREMENTS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+================================================================
+[REQUIREMENTS] TECHNICAL REQUIREMENTS
+================================================================
 
 **ANTI-HALLUCINATION VALIDATION:**
-1. **Model Names**: Only use production models (GPT-4, GPT-4o, Claude 3.5 Sonnet, Claude 3 Opus, Gemini 1.5 Pro/Flash)
-   - NEVER hallucinate: "GPT-5", "GPT-7", "Claude-10", "O4", "O5"
-   - Mark deprecated with context: "GPT-3.5 (deprecated 2024)" ✓
-   - If uncertain about a model, use web search to verify
+1. **Model Names**: Verify ALL model names via web search before using
+   - Do NOT assume any model exists or doesn't exist
+   - Search for each model/tool name to confirm it's real and released
+   - If web search doesn't confirm existence, DO NOT use it
 
-2. **Hype Words - FORBIDDEN**: Revolutionary, game-changing, groundbreaking, cutting-edge, state-of-the-art, paradigm shift, disruptive, next-generation, industry-leading, world-class, best-in-class, mission-critical, enterprise-grade, military-grade, unprecedented
+2. **NO UNPROVEN QUANTIFICATION**: Don't claim statistics unless research-backed
+   - WRONG: "Why did X decline by 40%?" (unproven claim)
+   - RIGHT: "What might explain reduced X?" (observable trend)
+   - If not proven by researchers, don't state as fact - misleads learners
 
-3. **Code Syntax Validation**:
-   - Match brackets: \`[1, 2, 3]\` ✓, \`[1, 2, 3\` ❌
-   - No typos: \`print()\` ✓, \`pirnt()\` ❌
-   - Comparison operators: \`==\` for equality ✓, \`=\` ❌
-   - No empty calls: \`function()\` ❌ (must have purpose)
+3. **Hype Words - FORBIDDEN**: Revolutionary, game-changing, groundbreaking, cutting-edge, state-of-the-art, paradigm shift, disruptive, next-generation, industry-leading, world-class, best-in-class, mission-critical, enterprise-grade, military-grade, unprecedented
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️ COMMON MISTAKES: GOOD vs BAD EXAMPLES (LEARN FROM THESE!)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. **Code Syntax Validation**:
+   - Match brackets: [1, 2, 3] [OK], [1, 2, 3 [X]
+   - No typos: print() [OK], pirnt() [X]
+   - Comparison operators: == for equality [OK], = [X]
+   - No empty calls: function() [X] (must have purpose)
 
-**MISTAKE 1: Hallucinated AI Models**
-❌ BAD: "Which model is most powerful: GPT-5, Claude-10, or Gemini-3?"
-✅ GOOD: "Which model is most powerful: GPT-4o, Claude 3.5 Sonnet, or Gemini 1.5 Pro?"
-→ Use only verified production models as of November 2025
+================================================================
+[WARNING] COMMON MISTAKES: GOOD vs BAD EXAMPLES
+================================================================
+
+**MISTAKE 1: Unverified AI Models**
+[X] BAD: Using model names without verifying they exist via web search
+[OK] GOOD: Web search confirms model exists, then use it in question
+-> Always verify model names via web search before using them
 
 **MISTAKE 2: Marketing Hype Words**
-❌ BAD: "This revolutionary AI framework is a game-changing paradigm shift"
-✅ GOOD: "This AI framework introduces significant improvements to performance"
-→ Use factual, technical language without superlatives
+[X] BAD: "This revolutionary AI framework is a game-changing paradigm shift"
+[OK] GOOD: "This AI framework introduces significant improvements to performance"
+-> Use factual, technical language without superlatives
 
 **MISTAKE 3: Unbalanced Option Lengths**
-❌ BAD:
+[X] BAD:
 - answer1: "Yes" (3 chars)
 - answer2: "This is a very detailed explanation of the concept..." (52 chars)
-✅ GOOD:
+[OK] GOOD:
 - answer1: "Supervised learning with labeled training data" (47 chars)
 - answer2: "Unsupervised clustering without label requirements" (52 chars)
-→ All options must be within ±5 characters of each other
+-> All options must be within +-5 characters of each other
 
 **MISTAKE 4: Correct Answer Always Longest**
-❌ BAD: correctAnswer is always the longest option (students will exploit this!)
-✅ GOOD: Vary which option is longest - sometimes make WRONG answer longest
-→ Breaks student length heuristic patterns
+[X] BAD: correctAnswer is always the longest option (students will exploit this!)
+[OK] GOOD: Vary which option is longest - sometimes make WRONG answer longest
+-> Breaks student length heuristic patterns
 
 **MISTAKE 5: Pattern-Exploitable Answer Distribution**
-❌ BAD: correctAnswer sequence = [1,1,1,1,1,2,2,3,3,4] (position 1 dominates!)
-✅ GOOD: correctAnswer sequence = [1,3,2,4,1,2,3,4,2,3] (balanced 2-3 per position)
-→ Each position must appear 2-3 times across 10 questions
+[X] BAD: correctAnswer sequence = [1,1,1,1,1,2,2,3,3,4] (position 1 dominates!)
+[OK] GOOD: correctAnswer sequence = [1,3,2,4,1,2,3,4,2,3] (balanced 2-3 per position)
+-> Each position must appear 2-3 times across 10 questions
 
 **MISTAKE 6: Non-Standard Time Limits**
-❌ BAD: timeLimit = 21, 23, 27, 31, 33 seconds (creates inconsistency)
-✅ GOOD: timeLimit = 20, 25, 30, or 35 seconds ONLY
-→ Use normalized intervals for consistency
+[X] BAD: timeLimit = 21, 23, 27, 31, 33 seconds (creates inconsistency)
+[OK] GOOD: timeLimit = 20, 25, 30, or 35 seconds ONLY
+-> Use normalized intervals for consistency
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+================================================================
 
-**MANDATORY BALANCED DISTRIBUTION:**
+**SHUFFLE LOGIC - POSITION DISTRIBUTION:**
 - Each position (1, 2, 3, 4) MUST appear **2-3 times** across 10 questions
-- Total must equal 10: [3,3,2,2] ✅ or [2,3,3,2] ✅
-- FORBIDDEN: [5,2,1,2] ❌ or [4,4,1,1] ❌
-- Never place correct answer in same position for 4+ consecutive questions
+- **NEVER REPEAT** same position in consecutive questions
+- Total must equal 10: [3,3,2,2] ✓ or [2,3,3,2] ✓
+
+WRONG patterns:
+- [2,2,3,3,4,4,1,1,2,2] ❌ Consecutive repeats
+- [1,2,3,4,1,2,3,4,1,2] ❌ Too predictable
+
+RIGHT patterns (shuffled, no consecutive repeats):
+- [1,3,2,4,1,3,4,2,3,4] ✓
+- [2,1,4,3,1,4,2,3,1,4] ✓
+- [4,2,1,3,2,4,1,3,4,2] ✓
 
 **CRITICAL: Use ONLY these 4 standard intervals: 20, 25, 30, 35 seconds**
-DO NOT use: 21s, 22s, 23s, 24s, 26s, 27s, 28s, 29s, 31s, 32s, 33s, 34s ❌
+DO NOT use: 21s, 22s, 23s, 24s, 26s, 27s, 28s, 29s, 31s, 32s, 33s, 34s [X]
 
 Time allocation guide:
 - 20s: Short factual recall, simple definitions, basic syntax
@@ -1329,62 +1627,42 @@ Time allocation guide:
 
 **MODULE-SPECIFIC TIME ADJUSTMENTS:**
 - Python: Standard (no adjustment)
-- SQL: +5% (complex query analysis)
-- Math/Stats: +10% (formula interpretation)
-- Machine Learning: +5% (hyperparameter reasoning)
-- Deep Learning: +10% (architecture understanding)
+- SQL: +5 percent (complex query analysis)
+- Math/Stats: +10 percent (formula interpretation)
+- Machine Learning: +5 percent (hyperparameter reasoning)
+- Deep Learning: +10 percent (architecture understanding)
 
-**OPTION BALANCE:**
-- All options ≥15 characters (prevents "None" exploit)
-- Length variance ≤40 characters (longest - shortest)
-- Correct answer should NOT always be longest option
-- Vary option lengths naturally across questions
+**OPTION REQUIREMENTS (ANTI-EXPLOIT):**
+- **EQUAL WORD COUNT**: All 4 options in EACH question MUST have SAME word count
+- Range: 1-6 words per option, vary across questions (Q1: all 3-word, Q2: all 4-word, etc.)
+- NEVER vague: "Better performance", "More efficient", "It depends" ❌
+- Each option must clearly explain a specific concept or reason
+- This prevents learners from exploiting "longest answer = correct" pattern
 
-**TRUE/FALSE ANTI-EXPLOIT TACTICS:**
+**TRUE/FALSE ANTI-EXPLOIT:** Avoid "always/never/all/none" keywords; use nuanced wording
 
-**TRICK 1: ABSOLUTE LANGUAGE TRAPS**
-❌ BAD: "Machine learning always requires labeled data"
-✅ GOOD: "Supervised learning typically requires labeled data"
-
-Absolute words to avoid in TRUE statements: always, never, all, none, every, must, impossible, guaranteed
-
-**TRICK 2: REVERSED DEFINITIONS**
-❌ BAD: "Overfitting occurs when model performs well on training data" (too obvious)
-✅ GOOD: "A model with high training accuracy but low test accuracy shows signs of underfitting" (FALSE - tests understanding)
-
-**TRICK 3: SUBTLE TECHNICAL ERRORS**
-✅ GOOD: "In Python, \`is\` and \`==\` can be used interchangeably for comparing integers" (FALSE - tricky!)
-✅ GOOD: "ReLU activation function outputs values between 0 and 1" (FALSE - it's unbounded above)
-
-**TRICK 4: COMMON MISCONCEPTIONS**
-✅ GOOD: "Increasing the number of trees in Random Forest always improves accuracy" (FALSE - diminishing returns)
-✅ GOOD: "Correlation equals causation when r > 0.9" (FALSE - classic trap)
-
-**TRICK 5: CONTEXT-DEPENDENT STATEMENTS**
-✅ GOOD: "Batch normalization should always be applied before activation functions" (FALSE - debatable/context-dependent)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 JSON SCHEMA (EXACT FORMAT REQUIRED)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+================================================================
+[SCHEMA] JSON SCHEMA (EXACT FORMAT REQUIRED)
+================================================================
 
 {
   "module": "${moduleName}",
   "questions": [
     {
       "id": "1",
-      "question": "User's first question text (PRESERVE EXACTLY)",
-      "answer1": "Option A text (≥15 chars)",
-      "answer2": "Option B text (≥15 chars)",
-      "answer3": "Option C text (≥15 chars)",
-      "answer4": "Option D text (≥15 chars)",
+      "question": "Users first question text (PRESERVE EXACTLY)",
+      "answer1": "Option A text (>=15 chars)",
+      "answer2": "Option B text (>=15 chars)",
+      "answer3": "Option C text (>=15 chars)",
+      "answer4": "Option D text (>=15 chars)",
       "answer5": "",
       "answer6": "",
       "answer7": "",
       "answer8": "",
       "answer9": "",
       "correctAnswer": 1,
-      "minPoints": 0,
-      "maxPoints": 0,
+      "minPoints": "",
+      "maxPoints": "",
       "explanation": "Why this answer is correct (2-3 sentences)",
       "timeLimit": 25,
       "imageUrl": ""
@@ -1392,9 +1670,9 @@ Absolute words to avoid in TRUE statements: always, never, all, none, every, mus
   ]
 }
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-♿ ACCESSIBILITY BEST PRACTICES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+================================================================
+[ACCESSIBILITY] ACCESSIBILITY BEST PRACTICES
+================================================================
 
 **Avoid images for code:**
 - Prefer code in backticks over code in images
@@ -1402,9 +1680,9 @@ Absolute words to avoid in TRUE statements: always, never, all, none, every, mus
 
 **Default:** imageUrl = ""
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🧠 BLOOM'S TAXONOMY: COGNITIVE DIVERSITY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+================================================================
+[BLOOMS] COGNITIVE DIVERSITY
+================================================================
 
 **RECOMMENDED DISTRIBUTION (if generating additional questions to reach 10):**
 - 1 "Remember" (recall, define) - 20s
@@ -1414,61 +1692,158 @@ Absolute words to avoid in TRUE statements: always, never, all, none, every, mus
 - 1-2 "Evaluate" (assess, recommend) - 30-35s
 - 0-1 "Create" (design) - 35s - optional
 
-**Match user's cognitive level if they provide questions first**
+**Match users cognitive level if they provide questions first**
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📚 REFERENCE EXAMPLES FOR ${moduleName}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+================================================================
+[EXAMPLES] REFERENCE EXAMPLES FOR ${moduleName}
+================================================================
 
-**Use these examples as reference for formatting (but preserve user's content):**
+**Use these examples as reference for formatting (but preserve users content):**
 
 ${getModuleExamples(moduleName)}
 
 ${llmSpecificInstructions}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ VERIFICATION CHECKLIST (BEFORE SUBMITTING)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+================================================================
+[CHECKLIST] VERIFICATION CHECKLIST (BEFORE SUBMITTING)
+================================================================
 
 **CONTENT PRESERVATION:**
-□ User's questions copied EXACTLY (no rewording)
-□ Only generated additional questions if user provided <10
-□ New questions match user's difficulty level
+[ ] Users questions copied EXACTLY (no rewording)
+[ ] Only generated additional questions if user provided <10
+[ ] New questions match users difficulty level
 
-**ANTI-HALLUCINATION:**
-□ All model names verified (no GPT-5, Claude-10, O4)
-□ Zero hype words used (revolutionary, game-changing, etc.)
-□ All code syntax validated (brackets matched, no typos)
-□ Web search used for any uncertain facts
+**ANTI-HALLUCINATION & ACCURACY:**
+[ ] All model names verified via web search before using
+[ ] **NO unproven statistics** - only observable trends, not unverified claims
+[ ] Zero hype words used (revolutionary, game-changing, etc.)
+[ ] All code syntax validated (brackets matched, no typos)
+[ ] Web search used for any uncertain facts
 
-**DISTRIBUTION & PATTERNS:**
-□ Answer distribution balanced: [2-3, 2-3, 2-3, 2-3]
-□ No position appears >3 times or <2 times
-□ No 4+ consecutive same position answers
+**SHUFFLE LOGIC & DISTRIBUTION:**
+[ ] Each position (1,2,3,4) appears 2-3 times
+[ ] **NO consecutive repeats** (Q1≠Q2, Q2≠Q3, Q3≠Q4, etc.)
+[ ] All 4 positions used - never skip any
 
 **TIME LIMITS:**
-□ Only used: 20s, 25s, 30s, or 35s (no 21s, 23s, 31s, etc.)
-□ Module adjustment applied correctly
-□ Time matches question complexity
+[ ] Only used: 20s, 25s, 30s, or 35s (no 21s, 23s, 31s, etc.)
+[ ] Module adjustment applied correctly
+[ ] Time matches question complexity
 
-**OPTIONS:**
-□ All options ≥15 characters
-□ Length variance ≤40 characters
-□ Correct answer NOT always longest
-□ Plausible distractors (not obviously wrong)
+**OPTIONS (ANTI-EXPLOIT):**
+[ ] **EQUAL WORD COUNT**: All 4 options in EACH question have SAME word count
+[ ] Range: 1-6 words, vary across questions (Q1: all 3-word, Q2: all 4-word)
+[ ] NO vague options: "Better performance", "More efficient", "It depends" ❌
+[ ] Each option clearly explains a specific concept or reason
+[ ] Plausible distractors (not obviously wrong)
 
 **SCHEMA COMPLIANCE:**
-□ answer5-answer9 = "" (empty strings)
-□ minPoints = 0, maxPoints = 0
-□ correctAnswer is 1, 2, 3, or 4 (not 0 or 5+)
-□ imageUrl = "" (empty string)
+[ ] answer5-answer9 = "" (empty strings)
+[ ] minPoints = "", maxPoints = "" (empty strings)
+[ ] correctAnswer is 1, 2, 3, or 4 (not 0 or 5+)
+[ ] imageUrl = "" (empty string)
 
 **ACCESSIBILITY:**
-□ No code in images (use backticks instead)
+[ ] No code in images (use backticks instead)
 
-**BLOOM'S TAXONOMY (if generating additional questions):**
-□ Cognitive diversity across Remember/Understand/Apply/Analyze/Evaluate levels
-□ Not all questions are memorization (varies difficulty)
+**BLOOMS TAXONOMY (if generating additional questions):**
+[ ] Cognitive diversity across Remember/Understand/Apply/Analyze/Evaluate levels
+[ ] Not all questions are memorization (varies difficulty)
 
-OUTPUT ONLY THE JSON. NO OTHER TEXT. NO MARKDOWN FENCES.`;
+================================================================
+JSON OUTPUT RULES (CRITICAL - FOLLOW EXACTLY)
+================================================================
+
+1. **RAW JSON ONLY**: Output starts with { and ends with } - nothing else
+2. **NO MARKDOWN**: Do NOT wrap in \`\`\`json or \`\`\` fences
+3. **NO EXPLANATIONS**: No text before or after the JSON object
+4. **STRAIGHT QUOTES ONLY**: Use " not curly quotes like " or "
+5. **NO SPECIAL CHARACTERS**: Forbidden in all text fields:
+   - NO: em-dash (--), curly quotes (""), ellipsis (...)
+   - NO: unicode symbols, emojis, special math symbols
+   - USE: hyphen (-), straight quotes ("), three periods (...)
+6. **ESCAPE PROPERLY**: Use \\" for quotes inside strings, \\\\ for backslashes
+7. **VALID JSON**: Must pass JSON.parse() - no trailing commas, proper brackets
+
+OUTPUT RAW JSON ONLY. START WITH { END WITH }`;
+};
+
+/**
+ * JSON Syntax Fix Prompt - For when JSON is completely broken and cannot be parsed
+ * This helps fix syntax errors like missing commas, quotes, brackets, etc.
+ */
+export const getJSONSyntaxFixPrompt = (
+  moduleName: string,
+  brokenJSON: string,
+  parseError: string,
+): string => {
+  return `You are a JSON syntax fixer. The following quiz JSON has syntax errors and cannot be parsed.
+
+================================================================
+PARSE ERROR
+================================================================
+${parseError}
+
+================================================================
+BROKEN JSON (FIX THIS)
+================================================================
+${brokenJSON}
+
+================================================================
+REQUIRED VALID STRUCTURE
+================================================================
+{
+  "module": "${moduleName}",
+  "questions": [
+    {
+      "id": "Q1",
+      "question": "Question text here",
+      "answer1": "Option A",
+      "answer2": "Option B",
+      "answer3": "Option C",
+      "answer4": "Option D",
+      "answer5": "",
+      "answer6": "",
+      "answer7": "",
+      "answer8": "",
+      "answer9": "",
+      "correctAnswer": 1,
+      "minPoints": "",
+      "maxPoints": "",
+      "explanation": "Reason X happens because Y causes Z.",
+      "timeLimit": 25,
+      "imageUrl": ""
+    }
+  ]
+}
+
+================================================================
+COMMON JSON SYNTAX ERRORS TO FIX
+================================================================
+1. **Missing commas** between properties or array elements
+2. **Trailing commas** after last property (remove them)
+3. **Unescaped quotes** inside strings (use backslash escape)
+4. **Curly quotes** instead of straight quotes
+5. **Missing closing brackets** } or ]
+6. **Special characters** causing parse errors (em-dash, ellipsis, unicode)
+7. **Field types** - correctAnswer, timeLimit must be numbers; minPoints, maxPoints must be empty strings
+   - WRONG: "correctAnswer": "1" | RIGHT: "correctAnswer": 1
+   - WRONG: "minPoints": 0 | RIGHT: "minPoints": ""
+8. **Broken field names** - words split with spaces due to line wrapping
+   - WRONG: "explanat ion", "m axPoints", "timeLim it"
+   - RIGHT: "explanation", "maxPoints", "timeLimit"
+   - FIX: Remove spaces from field names, keep them intact
+
+================================================================
+FIX INSTRUCTIONS
+================================================================
+1. Identify the syntax error from the parse error message
+2. Fix broken field names (remove spaces from: explanation, maxPoints, minPoints, timeLimit, correctAnswer, imageUrl)
+3. Fix ONLY the syntax issues - do NOT change question content
+4. Ensure all 10 questions have correct structure
+5. Verify: correctAnswer, timeLimit are numbers; minPoints, maxPoints are "" (empty strings)
+6. Ensure answer5-9 are empty strings "", not missing
+7. Output corrected JSON on ONE CONTINUOUS LINE (no wrapping)
+
+OUTPUT THE FIXED JSON ON A SINGLE LINE. NO EXPLANATIONS. START WITH { END WITH }`;
 };

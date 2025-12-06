@@ -147,19 +147,18 @@ export default function QuizExporter({
         <div className="text-sm text-slate-700">
           <p className="font-semibold mb-1">Excel Copy Instructions:</p>
           <ol className="list-decimal list-inside space-y-1">
-            <li>Click "Copy Table Range (A2:P11)" below</li>
+            <li>Click "Copy Table Range (A2:Q11)" below</li>
             <li>Open OneDrive Excel sheet for Discord bot</li>
             <li>
               Click cell <strong>A2</strong> (below header row)
             </li>
             <li>Paste (Ctrl+V / Cmd+V)</li>
             <li>
-              Data fills <strong>A2:P11</strong> → 10 questions × 16 columns
+              Data fills <strong>A2:Q11</strong> → 10 questions × 17 columns
             </li>
           </ol>
           <p className="mt-2 text-xs text-slate-500">
-            ℹ️ Module column removed - now 16 columns (A-P) to match Excel
-            template
+            ℹ️ 17 columns (A-Q) with ID column for proper question tracking
           </p>
         </div>
       </div>
@@ -176,12 +175,12 @@ export default function QuizExporter({
         {copiedTable ? (
           <>
             <Check className="w-5 h-5" />
-            Copied Range A2:P11!
+            Copied Range A2:Q11!
           </>
         ) : (
           <>
             <Copy className="w-5 h-5" />
-            Copy Table Range (A2:P11)
+            Copy Table Range (A2:Q11)
           </>
         )}
       </button>
@@ -255,7 +254,7 @@ export default function QuizExporter({
           </div>
           <div>
             <span className="text-slate-600">Excel Range:</span>
-            <span className="ml-2 font-medium text-green-600">A2:P11 ✓</span>
+            <span className="ml-2 font-medium text-green-600">A2:Q11 ✓</span>
           </div>
         </div>
       </div>

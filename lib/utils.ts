@@ -30,8 +30,14 @@ const MODULE_TIME_MULTIPLIERS: Record<string, number> = {
 
 export const VALIDATION_RULES = {
   question: { min: 30, max: 200 },
-  option: { min: 15, max: 70 },
-  optionBalance: 5,
+  option: {
+    plainText: { min: 5, max: 25 }, // Plain text options (strict, no fluff)
+    code: { min: 5, max: 50 }, // Code with symbols/backticks
+  },
+  optionBalance: {
+    plainText: 15, // Max variance for plain text (5-25 char range = 20 span, allow 15 diff)
+    code: 25, // Max variance for code options (5-50 char range = 45 span, allow 25 diff)
+  },
   explanation: { minWords: 12, maxWords: 18 },
   timeLimit: { min: 15, max: 60 },
   requiredFields: [
@@ -62,66 +68,21 @@ export const VALIDATION_RULES = {
     "paradigm shift",
     "disruptive",
   ],
-  productionModels: {
-    claude: [
-      "claude-sonnet-4-5",
-      "claude-sonnet-4-5-20250929",
-      "claude-opus-4-1",
-      "claude-opus-4-1-20250805",
-      "claude-opus-4",
-      "claude-opus-4-20250514",
-      "claude-sonnet-4",
-      "claude-sonnet-4-20250514",
-      "claude-haiku-4-5",
-      "claude-haiku-4-5-20251001",
-      "claude-3-5-haiku",
-      "claude-3-haiku",
-    ],
-    openai: [
-      "gpt-5",
-      "gpt-5-2025-08-07",
-      "gpt-5-mini",
-      "gpt-5-mini-2025-08-07",
-      "gpt-5-nano",
-      "gpt-5-nano-2025-08-07",
-      "gpt-4.1",
-      "gpt-4.1-2025-04-14",
-      "gpt-4.1-mini",
-      "gpt-4.1-mini-2025-04-14",
-      "o3",
-      "o3-2025-04-16",
-      "o3-pro",
-      "o4-mini",
-      "o4-mini-2025-04-16",
-      "gpt-4o",
-      "gpt-4o-mini",
-    ],
-    google: [
-      "gemini-2.5-flash",
-      "gemini-2.5-pro",
-      "gemini-2.5-flash-lite",
-      "gemini-2.5-flash-image",
-      "gemini-2.0-flash",
-      "gemini-2.0-flash-001",
-      "gemini-2.0-flash-lite",
-      "gemini-2.0-flash-lite-001",
-      "gemini-3-pro-preview",
-      "gemini-3-pro",
-    ],
-    deprecated: [
-      "claude-3-5-sonnet",
-      "claude-3-opus",
-      "claude-3-sonnet",
-      "gpt-3.5-turbo",
-      "gpt-4.5-preview",
-      "o1-preview",
-      "o1-mini",
-      "o3-mini",
-      "gemini-1.5-pro",
-      "gemini-1.5-flash",
-      "gemini-1.0-pro",
-    ],
+  // Pattern-based model validation (replaces hardcoded lists)
+  // Matches model family patterns rather than specific versions
+  modelPatterns: {
+    claude: /^claude-(?:sonnet|opus|haiku)-?[\d.-]*$/i,
+    openai: /^(?:gpt-[\d.]+|o[1-4](?:-\w+)?)(?:-[\w-]+)?$/i,
+    google: /^gemini-[\d.]+-?(?:pro|flash|lite)?(?:-\w+)?$/i,
   },
+  // Known deprecated model patterns (warn users)
+  deprecatedPatterns: [
+    /^claude-3-(?!5)/i,           // claude-3-* but not claude-3-5-*
+    /^gpt-3\.5/i,                 // gpt-3.5-*
+    /^gpt-4\.5/i,                 // gpt-4.5-* (preview)
+    /^o1-/i,                      // o1-* models
+    /^gemini-1\.[05]/i,           // gemini-1.0-* and gemini-1.5-*
+  ],
 };
 
 export const countWords = (text: string): number => {
@@ -356,7 +317,67 @@ export const calculateRecommendedTimeLimit = (
 // ENHANCED VALIDATION FUNCTIONS (Added Nov 2025 - Phase 1 Improvements)
 // ============================================================================
 
-// Extract JSON from LLM output (handles markdown fences, preambles)
+/**
+ * Sanitize JSON by removing newlines/whitespace from inside strings (keys AND values)
+ * This fixes word-wrapped JSON from copy-paste where field names get broken like "explanat\nion" → "explanat ion"
+ *
+ * KEY FIX (Dec 2025): Remove newlines entirely inside strings, don't replace with spaces.
+ * This fixes field names like "m axPoints" becoming valid "maxPoints" again.
+ */
+const sanitizeJSONString = (jsonStr: string): string => {
+  let result = "";
+  let inString = false;
+  let escapeNext = false;
+
+  for (let i = 0; i < jsonStr.length; i++) {
+    const char = jsonStr[i];
+
+    if (escapeNext) {
+      result += char;
+      escapeNext = false;
+      continue;
+    }
+
+    if (char === "\\") {
+      result += char;
+      escapeNext = true;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      result += char;
+      continue;
+    }
+
+    if (inString) {
+      // Inside a string (key or value): REMOVE newlines/carriage returns entirely
+      // This fixes word-wrapped keys like "explanat\nion" → "explanation" (not "explanat ion")
+      if (char === "\n" || char === "\r") {
+        // Skip newlines entirely - they're word-wrap artifacts, not content
+        continue;
+      }
+      // Keep tabs as single space (rare but possible in values)
+      if (char === "\t") {
+        if (result.length > 0 && result[result.length - 1] !== " ") {
+          result += " ";
+        }
+        continue;
+      }
+      result += char;
+    } else {
+      // Outside strings: skip all whitespace characters
+      if (char === "\n" || char === "\r" || char === "\t") {
+        continue;
+      }
+      result += char;
+    }
+  }
+
+  return result;
+};
+
+// Extract JSON from LLM output (handles markdown fences, preambles, word-wrapping)
 export const extractJSONFromLLMOutput = (rawOutput: string): string => {
   // Strategy 1: Try parsing as-is
   try {
@@ -364,37 +385,48 @@ export const extractJSONFromLLMOutput = (rawOutput: string): string => {
     return rawOutput; // Already valid JSON
   } catch {}
 
-  // Strategy 2: Extract from markdown json code fences
+  // Strategy 2: Try sanitizing first (removes newlines from strings)
+  try {
+    const sanitized = sanitizeJSONString(rawOutput);
+    JSON.parse(sanitized);
+    return sanitized;
+  } catch {}
+
+  // Strategy 3: Extract from markdown json code fences
   const markdownMatch = rawOutput.match(/```json\s*\n?([\s\S]*?)\n?```/);
   if (markdownMatch) {
     try {
-      JSON.parse(markdownMatch[1]);
-      return markdownMatch[1];
+      const sanitized = sanitizeJSONString(markdownMatch[1]);
+      JSON.parse(sanitized);
+      return sanitized;
     } catch {}
   }
 
-  // Strategy 3: Extract from generic code fences
+  // Strategy 4: Extract from generic code fences
   const codeMatch = rawOutput.match(/```\s*\n?([\s\S]*?)\n?```/);
   if (codeMatch) {
     try {
-      JSON.parse(codeMatch[1]);
-      return codeMatch[1];
+      const sanitized = sanitizeJSONString(codeMatch[1]);
+      JSON.parse(sanitized);
+      return sanitized;
     } catch {}
   }
 
-  // Strategy 4: Find first { to last }
+  // Strategy 5: Find first { to last } and sanitize
   const firstBrace = rawOutput.indexOf("{");
   const lastBrace = rawOutput.lastIndexOf("}");
   if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
     const extracted = rawOutput.substring(firstBrace, lastBrace + 1);
     try {
-      JSON.parse(extracted);
-      return extracted;
+      const sanitized = sanitizeJSONString(extracted);
+      JSON.parse(sanitized);
+      return sanitized;
     } catch {}
   }
 
-  // Strategy 5: Give up, return original
-  return rawOutput;
+  // Strategy 6: Last resort - return sanitized version even if it doesn't parse
+  // This helps the syntax fix prompt show cleaner JSON
+  return sanitizeJSONString(rawOutput);
 };
 
 // Bloom's Taxonomy keyword-based classification
@@ -549,20 +581,47 @@ export const validateSemanticQuality = (
 ): string[] => {
   const warnings: string[] = [];
 
-  // Check 1: Question should be specific, not vague
+  // Check 1: Question should be specific, not vague (ENHANCED)
   const vaguePatterns = [
+    // Original patterns
     /what('s| is) (better|best|good)\b/i,
     /which (one|option)\??$/i,
     /^(how|why)\??$/i,
+
+    // NEW: Generic "What is X?" with no context
+    /^what is \w+\??$/i,
+
+    // NEW: "How does X work?" without specific feature
+    /^how (do|does) \w+ work\??$/i,
+
+    // NEW: "Explain X?" without specific aspect
+    /^explain \w+\??$/i,
+
+    // NEW: "Describe X?" without specific details
+    /^describe (the )?\w+\??$/i,
+
+    // NEW: Open-ended advantages/disadvantages without context
+    /what (are|is) the (advantages?|disadvantages?|benefits?|drawbacks?)\b/i,
   ];
 
+  const q = question.question.trim();
   vaguePatterns.forEach((pattern) => {
-    if (pattern.test(question.question.trim())) {
+    if (pattern.test(q)) {
       warnings.push(
-        `⚠️ Q${qNum}: Question may be too vague - add specific context`,
+        `⚠️ Q${qNum}: Question may be too vague - add specific context, tool names, or scenarios`,
       );
     }
   });
+
+  // NEW Check: Question should mention specific tools/syntax
+  const hasSpecifics = /[@`\(\)\[\]{}]|[A-Z][a-z]+[A-Z]/.test(q); // backticks, symbols, camelCase
+  const wordCount = q.split(/\s+/).length;
+
+  if (wordCount < 8 && !hasSpecifics) {
+    warnings.push(
+      `⚠️ Q${qNum}: Question seems too simple/generic (${wordCount} words) - add specific tool names, syntax, or scenarios`,
+    );
+  }
 
   // Check 2: Options should not be nonsense (plausibility check)
   const options = [
@@ -611,6 +670,99 @@ export const validateSemanticQuality = (
   return warnings;
 };
 
+/**
+ * Calculate specificity score for a question (0-100)
+ * Higher score = more specific/technical question
+ */
+export const calculateSpecificityScore = (question: Question): number => {
+  let score = 0;
+  const q = question.question;
+
+  // +20: Has code/syntax (backticks, parentheses, brackets, @decorators)
+  if (/[`\(\)\[\]{}@]/.test(q)) score += 20;
+
+  // +15: Names specific libraries/tools (common tech stack)
+  if (
+    /\b(Pandas|NumPy|PyTorch|TensorFlow|FastAPI|Streamlit|sklearn|scikit-learn|SQL|PostgreSQL|MySQL|MongoDB|Redis|Docker|Kubernetes|AWS|Azure|GCP|Claude|GPT|Gemini|BERT|Transformer|RAG|LangChain|ChromaDB)\b/i.test(
+      q,
+    )
+  )
+    score += 15;
+
+  // +15: Has specific parameters, methods, or version numbers
+  if (
+    /\b(max_depth|learning_rate|batch_size|n_estimators|temperature|top_p|alpha|lambda|dropout|epochs|layers)\b/.test(
+      q,
+    ) ||
+    /\d+\.\d+|v\d+/.test(q)
+  )
+    score += 15;
+
+  // +10: Question length > 80 chars (more context usually = more specific)
+  if (q.length > 80) score += 10;
+
+  // +10: Has concrete metrics or numbers
+  if (/\d+%|\d+ (samples?|rows?|features?|layers?|epochs?|parameters?)/.test(q))
+    score += 10;
+
+  // +10: Scenario-based (starts with context-setting words)
+  if (/^(A |Given |Debug |Consider |Analyze |In |When |For )/i.test(q))
+    score += 10;
+
+  // +10: Comparison with specific named entities
+  if (
+    /\b(vs\.?|versus|difference between|compare)\b/i.test(q) &&
+    /\b[A-Z]\w+\b.*\b[A-Z]\w+\b/.test(q)
+  )
+    score += 10;
+
+  // +10: Has proper function/method syntax (dot notation or decorators)
+  if (/\w+\.\w+\(|\.\w+\[|@\w+/.test(q)) score += 10;
+
+  // -20: Starts with extremely vague patterns
+  if (/^(What is |How does |Explain |Describe )\w+\??$/i.test(q)) score -= 20;
+
+  // -10: Very short question (<40 chars) usually means vague
+  if (q.length < 40) score -= 10;
+
+  return Math.max(0, Math.min(100, score));
+};
+
+/**
+ * Validate minimum specificity across entire quiz
+ */
+export const validateQuizSpecificity = (questions: Question[]): string[] => {
+  const warnings: string[] = [];
+  const scores = questions.map((q) => calculateSpecificityScore(q));
+  const avgScore = scores.reduce((sum, s) => sum + s, 0) / scores.length;
+
+  // Warn about individual low-specificity questions
+  scores.forEach((score, idx) => {
+    if (score < 30) {
+      warnings.push(
+        `⚠️ Q${idx + 1}: Low specificity score (${score}/100) - question needs specific tools, syntax, parameters, or concrete scenarios`,
+      );
+    }
+  });
+
+  // Warn if overall average is too low
+  if (avgScore < 50) {
+    warnings.push(
+      `⚠️ Overall quiz specificity too low (${Math.round(avgScore)}/100 average) - questions need more technical detail and specific context`,
+    );
+  }
+
+  // Flag if too many questions are below threshold
+  const lowSpecCount = scores.filter((s) => s < 40).length;
+  if (lowSpecCount > 3) {
+    warnings.push(
+      `⚠️ Too many vague questions (${lowSpecCount}/10 below threshold) - add specific tool names, code syntax, or numbered scenarios`,
+    );
+  }
+
+  return warnings;
+};
+
 export const validateQuizJSON = (
   jsonInput: string,
   moduleName: string,
@@ -625,8 +777,13 @@ export const validateQuizJSON = (
   try {
     data = JSON.parse(cleanedInput);
   } catch (e) {
+    // Provide detailed error message with actual parse error
+    const parseError = e instanceof SyntaxError ? e.message : "Unknown parse error";
     errors.push(
-      "❌ Invalid JSON format. Check for missing commas, brackets, or quotes.",
+      `❌ Invalid JSON format: ${parseError}`,
+    );
+    errors.push(
+      "💡 Common fixes: Check for missing commas, unescaped quotes, trailing commas, or special characters (use straight quotes, not curly quotes).",
     );
     return { valid: false, errors, warnings, data: null };
   }
@@ -681,6 +838,28 @@ export const validateQuizJSON = (
       }
     });
 
+    // Type validation for numeric fields (must be numbers, not strings)
+    if (typeof q.correctAnswer !== "number") {
+      errors.push(
+        `❌ Q${qNum}: correctAnswer must be a number, not "${typeof q.correctAnswer}" (found: ${JSON.stringify(q.correctAnswer)})`,
+      );
+    }
+    if (typeof q.timeLimit !== "number") {
+      errors.push(
+        `❌ Q${qNum}: timeLimit must be a number, not "${typeof q.timeLimit}" (found: ${JSON.stringify(q.timeLimit)})`,
+      );
+    }
+    if (typeof q.minPoints !== "number") {
+      errors.push(
+        `❌ Q${qNum}: minPoints must be a number, not "${typeof q.minPoints}" (found: ${JSON.stringify(q.minPoints)})`,
+      );
+    }
+    if (typeof q.maxPoints !== "number") {
+      errors.push(
+        `❌ Q${qNum}: maxPoints must be a number, not "${typeof q.maxPoints}" (found: ${JSON.stringify(q.maxPoints)})`,
+      );
+    }
+
     const qText = q.question || "";
     if (qText.length < VALIDATION_RULES.question.min) {
       errors.push(
@@ -705,14 +884,20 @@ export const validateQuizJSON = (
 
     options.forEach((opt, optIdx) => {
       const optNum = optIdx + 1;
-      if (opt.length < VALIDATION_RULES.option.min) {
+      // Detect if option contains code (backticks, brackets, symbols)
+      const hasCode = /[`{}()\[\]<>]/.test(opt);
+      const rules = hasCode
+        ? VALIDATION_RULES.option.code
+        : VALIDATION_RULES.option.plainText;
+
+      if (opt.length < rules.min) {
         errors.push(
-          `❌ Q${qNum} Option ${optNum}: Too short (${opt.length} chars, min ${VALIDATION_RULES.option.min})`,
+          `❌ Q${qNum} Option ${optNum}: Too short (${opt.length} chars, min ${rules.min} for ${hasCode ? "code" : "plain text"})`,
         );
       }
-      if (opt.length > VALIDATION_RULES.option.max) {
+      if (opt.length > rules.max) {
         warnings.push(
-          `⚠️ Q${qNum} Option ${optNum}: Too long (${opt.length} chars, max ${VALIDATION_RULES.option.max})`,
+          `⚠️ Q${qNum} Option ${optNum}: Too long (${opt.length} chars, max ${rules.max} for ${hasCode ? "code" : "plain text"})`,
         );
       }
     });
@@ -723,9 +908,15 @@ export const validateQuizJSON = (
       const maxLen = Math.max(...lengths);
       const diff = maxLen - minLen;
 
-      if (diff > VALIDATION_RULES.optionBalance) {
+      // Detect if any option has code - use appropriate balance rule
+      const hasAnyCode = options.some((opt) => /[`{}()\[\]<>]/.test(opt));
+      const balanceThreshold = hasAnyCode
+        ? VALIDATION_RULES.optionBalance.code
+        : VALIDATION_RULES.optionBalance.plainText;
+
+      if (diff > balanceThreshold) {
         errors.push(
-          `❌ Q${qNum}: Options not balanced (${minLen}-${maxLen} chars, diff ${diff} > ${VALIDATION_RULES.optionBalance})`,
+          `❌ Q${qNum}: Options not balanced (${minLen}-${maxLen} chars, diff ${diff} > ${balanceThreshold} for ${hasAnyCode ? "code" : "plain text"})`,
         );
       }
 
@@ -822,6 +1013,7 @@ export const validateQuizJSON = (
     warnings.push(...validateModelReferences(data));
     warnings.push(...validateHypeWords(data));
     warnings.push(...validateCodeSyntax(data));
+    warnings.push(...validateCorrectAnswerLength(data));
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -842,6 +1034,9 @@ export const validateQuizJSON = (
 
     // Run quiz-level validations
     warnings.push(...validateBloomDistribution(data.questions));
+
+    // NEW: Validate overall quiz specificity
+    warnings.push(...validateQuizSpecificity(data.questions));
   }
 
   const isValid = errors.length === 0;
@@ -894,6 +1089,7 @@ export const shuffleOptions = (question: Question): Question => {
 
 export const generateTableData = (quiz: QuizData): string[][] => {
   return quiz.questions.map((q) => [
+    q.id,
     q.question,
     q.answer1,
     q.answer2,
@@ -910,7 +1106,7 @@ export const generateTableData = (quiz: QuizData): string[][] => {
     q.explanation,
     String(q.timeLimit),
     q.imageUrl,
-    // Module column removed - not in Excel template
+    // 17 columns matching COLUMN_HEADERS: id first, then all question fields
   ]);
 };
 
@@ -927,6 +1123,237 @@ export const copyTableToClipboard = async (
     console.error("Failed to copy:", err);
     return false;
   }
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// TSV PARSING UTILITIES (November 22, 2025)
+// Support for pasting Excel data directly into "Your Collected Questions"
+// ═══════════════════════════════════════════════════════════════════
+
+export interface ParsedTSVQuestion {
+  id: string;
+  question: string;
+  options: string[]; // [answer1, answer2, answer3, answer4]
+  correctAnswer: number; // 1-4
+  explanation: string;
+  timeLimit: number;
+  minPoints: number;
+  maxPoints: number;
+  imageUrl: string;
+}
+
+/**
+ * Detects input format (TSV from Excel vs plain text)
+ * Returns 'tsv' if input contains tab-separated data with expected column count
+ */
+export const detectInputFormat = (input: string): "tsv" | "plaintext" => {
+  const trimmed = input.trim();
+  if (!trimmed) return "plaintext";
+
+  const lines = trimmed.split("\n");
+  if (lines.length < 2) return "plaintext"; // Need at least header + 1 data row
+
+  // Check first line for tab-separated columns
+  const firstLine = lines[0];
+  const tabs = (firstLine.match(/\t/g) || []).length;
+
+  // Excel A1:Q11 has 17 columns = 16 tabs
+  // Be flexible: 10+ tabs likely TSV (covers partial pastes)
+  if (tabs >= 10) {
+    return "tsv";
+  }
+
+  return "plaintext";
+};
+
+/**
+ * Parses TSV data (from Excel copy A1:Q11) into structured question format
+ * Handles both with-header and without-header cases
+ */
+export const parseTSVToQuestions = (
+  tsvInput: string,
+): {
+  success: boolean;
+  questions: ParsedTSVQuestion[];
+  errors: string[];
+} => {
+  const errors: string[] = [];
+  const questions: ParsedTSVQuestion[] = [];
+
+  try {
+    const lines = tsvInput
+      .trim()
+      .split("\n")
+      .filter((line) => line.trim());
+
+    if (lines.length === 0) {
+      errors.push("TSV input is empty");
+      return { success: false, questions: [], errors };
+    }
+
+    // Detect if first line is header by checking for "question" or "id" keywords
+    let startIndex = 0;
+    const firstLine = lines[0].toLowerCase();
+    const hasHeader =
+      firstLine.includes("question") ||
+      firstLine.includes("answer") ||
+      (firstLine.startsWith("#") && firstLine.includes("\t"));
+
+    if (hasHeader) {
+      startIndex = 1; // Skip header row
+    }
+
+    // Parse data rows
+    for (let i = startIndex; i < lines.length; i++) {
+      const line = lines[i];
+      const cells = line.split("\t");
+
+      // Validate column count (should be 17: A-Q)
+      if (cells.length < 12) {
+        errors.push(
+          `Row ${i + 1}: Insufficient columns (${cells.length} found, expected 17). Ensure you copied A1:Q11 range.`,
+        );
+        continue;
+      }
+
+      // Map columns to expected structure
+      // Expected: id, question, answer1-9, correctAnswer, minPoints, maxPoints, explanation, timeLimit, imageUrl
+      const [
+        id,
+        question,
+        answer1,
+        answer2,
+        answer3,
+        answer4,
+        answer5,
+        answer6,
+        answer7,
+        answer8,
+        answer9,
+        correctAnswer,
+        minPoints,
+        maxPoints,
+        explanation,
+        timeLimit,
+        imageUrl,
+      ] = cells;
+
+      // Validate required fields
+      if (!question || question.trim() === "") {
+        errors.push(`Row ${i + 1}: Question text is empty`);
+        continue;
+      }
+
+      // Validate we have at least 4 options
+      const options = [answer1, answer2, answer3, answer4].map((opt) =>
+        opt ? opt.trim() : "",
+      );
+      const validOptions = options.filter((opt) => opt !== "");
+
+      if (validOptions.length < 4) {
+        errors.push(
+          `Row ${i + 1}: Must have at least 4 non-empty answer options (found ${validOptions.length})`,
+        );
+        continue;
+      }
+
+      // Parse correctAnswer (default to 1 if invalid)
+      const parsedCorrectAnswer = parseInt(correctAnswer);
+      const finalCorrectAnswer =
+        !isNaN(parsedCorrectAnswer) &&
+        parsedCorrectAnswer >= 1 &&
+        parsedCorrectAnswer <= 4
+          ? parsedCorrectAnswer
+          : 1;
+
+      if (
+        isNaN(parsedCorrectAnswer) ||
+        parsedCorrectAnswer < 1 ||
+        parsedCorrectAnswer > 4
+      ) {
+        errors.push(
+          `Row ${i + 1}: Invalid correctAnswer "${correctAnswer}" - must be 1-4 (defaulting to 1)`,
+        );
+      }
+
+      // Parse timeLimit (default to 25s if invalid)
+      const parsedTimeLimit = parseInt(timeLimit);
+      const finalTimeLimit =
+        !isNaN(parsedTimeLimit) &&
+        parsedTimeLimit >= 20 &&
+        parsedTimeLimit <= 35
+          ? parsedTimeLimit
+          : 25;
+
+      // Parse points (default to 0)
+      const parsedMinPoints = parseInt(minPoints) || 0;
+      const parsedMaxPoints = parseInt(maxPoints) || 0;
+
+      // Create parsed question
+      const parsedQuestion: ParsedTSVQuestion = {
+        id: id && id.trim() !== "" ? id.trim() : `Q${questions.length + 1}`,
+        question: question.trim(),
+        options: options,
+        correctAnswer: finalCorrectAnswer,
+        explanation: explanation ? explanation.trim() : "",
+        timeLimit: finalTimeLimit,
+        minPoints: parsedMinPoints,
+        maxPoints: parsedMaxPoints,
+        imageUrl: imageUrl ? imageUrl.trim() : "",
+      };
+
+      questions.push(parsedQuestion);
+    }
+
+    // Final validation
+    if (questions.length === 0) {
+      errors.push("No valid questions found in TSV data");
+      return { success: false, questions: [], errors };
+    }
+
+    return {
+      success: errors.length === 0,
+      questions,
+      errors,
+    };
+  } catch (error) {
+    errors.push(
+      `Parse error: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return { success: false, questions: [], errors };
+  }
+};
+
+/**
+ * Converts parsed TSV questions to QuizData format
+ * Maps ParsedTSVQuestion[] → QuizData (strict schema)
+ */
+export const convertTSVToQuizData = (
+  parsedQuestions: ParsedTSVQuestion[],
+  moduleName: string,
+): QuizData => {
+  return {
+    module: moduleName,
+    questions: parsedQuestions.map((pq) => ({
+      id: pq.id,
+      question: pq.question,
+      answer1: pq.options[0] || "",
+      answer2: pq.options[1] || "",
+      answer3: pq.options[2] || "",
+      answer4: pq.options[3] || "",
+      answer5: "", // Excel format doesn't use answer5-9
+      answer6: "",
+      answer7: "",
+      answer8: "",
+      answer9: "",
+      correctAnswer: pq.correctAnswer,
+      minPoints: pq.minPoints,
+      maxPoints: pq.maxPoints,
+      explanation: pq.explanation,
+      timeLimit: pq.timeLimit,
+      imageUrl: pq.imageUrl,
+    })),
+  };
 };
 
 export const calculateCorrectAnswerDistribution = (quiz: QuizData) => {
@@ -953,17 +1380,12 @@ export const isDistributionUnbalanced = (quiz: QuizData): boolean => {
 // ═══════════════════════════════════════════════════════════════════
 
 /**
- * Validates AI model references against known production models
- * Detects hallucinated or deprecated models (as of Nov 2025)
+ * Validates AI model references using pattern matching
+ * More flexible than hardcoded lists - adapts to new model versions
  */
 export const validateModelReferences = (quiz: QuizData): string[] => {
   const warnings: string[] = [];
-  const validModels = [
-    ...VALIDATION_RULES.productionModels.claude,
-    ...VALIDATION_RULES.productionModels.openai,
-    ...VALIDATION_RULES.productionModels.google,
-  ];
-  const deprecatedModels = VALIDATION_RULES.productionModels.deprecated;
+  const { modelPatterns, deprecatedPatterns } = VALIDATION_RULES;
 
   quiz.questions.forEach((q, idx) => {
     const qNum = idx + 1;
@@ -971,35 +1393,78 @@ export const validateModelReferences = (quiz: QuizData): string[] => {
 
     // Regex for AI model patterns: gpt-4, claude-3, gemini-2.5, o3, etc.
     const modelMatches =
-      content.match(/(?:gpt|claude|gemini|o\d+)[-\s]?[\d.]+(?:[-\s]?\w+)?/gi) ||
+      content.match(/\b(?:gpt-[\d.]+[-\w]*|claude-[\w.-]+|gemini-[\d.]+-?\w*|o[1-4](?:-\w+)?)\b/gi) ||
       [];
 
     modelMatches.forEach((match) => {
-      const normalized = match.toLowerCase().replace(/\s+/g, "-");
+      const normalized = match.toLowerCase().trim();
 
-      // Check if valid production model
-      const isValid = validModels.some(
-        (m) =>
-          m.toLowerCase().includes(normalized) ||
-          normalized.includes(m.toLowerCase()),
-      );
-      const isDeprecated = deprecatedModels.some(
-        (m) =>
-          m.toLowerCase().includes(normalized) ||
-          normalized.includes(m.toLowerCase()),
+      // Check if matches any valid production pattern
+      const isValidPattern = Object.values(modelPatterns).some(
+        (pattern) => pattern.test(normalized)
       );
 
-      if (!isValid && !isDeprecated) {
-        warnings.push(
-          `⚠️ Q${qNum}: Potentially hallucinated model "${match}" - verify this exists as of Nov 2025`,
-        );
-      } else if (isDeprecated) {
+      // Check if matches deprecated pattern
+      const isDeprecated = deprecatedPatterns.some(
+        (pattern) => pattern.test(normalized)
+      );
+
+      if (isDeprecated) {
         warnings.push(
           `⚠️ Q${qNum}: Deprecated model "${match}" - students shouldn't learn outdated tech`,
+        );
+      } else if (!isValidPattern) {
+        warnings.push(
+          `⚠️ Q${qNum}: Unrecognized model "${match}" - verify this exists`,
         );
       }
     });
   });
+
+  return warnings;
+};
+
+/**
+ * Validates correct answer length distribution
+ * Prevents exploit where correct answer is always longest
+ * Rule: Correct answer should be longest in max 4/10 questions
+ */
+export const validateCorrectAnswerLength = (quiz: QuizData): string[] => {
+  const warnings: string[] = [];
+  let longestCorrectCount = 0;
+  let shortestCorrectCount = 0;
+  const lengthPositions: string[] = [];
+
+  quiz.questions.forEach((q, idx) => {
+    const options = [q.answer1, q.answer2, q.answer3, q.answer4];
+    const lengths = options.map((o) => o.length);
+    const correctIdx = q.correctAnswer - 1;
+    const correctLength = lengths[correctIdx];
+    const maxLength = Math.max(...lengths);
+    const minLength = Math.min(...lengths);
+
+    if (correctLength === maxLength && lengths.filter((l) => l === maxLength).length === 1) {
+      longestCorrectCount++;
+      lengthPositions.push(`Q${idx + 1}`);
+    }
+    if (correctLength === minLength && lengths.filter((l) => l === minLength).length === 1) {
+      shortestCorrectCount++;
+    }
+  });
+
+  // Warn if correct answer is longest too often (exploitable pattern)
+  if (longestCorrectCount > 4) {
+    warnings.push(
+      `⚠️ Anti-exploit: Correct answer is longest in ${longestCorrectCount}/10 questions (${lengthPositions.join(", ")}) - students can exploit "pick longest" strategy`,
+    );
+  }
+
+  // Warn if never shortest (should vary for unpredictability)
+  if (shortestCorrectCount === 0 && quiz.questions.length >= 10) {
+    warnings.push(
+      `⚠️ Anti-exploit: Correct answer is never the shortest option - vary length position for unpredictability`,
+    );
+  }
 
   return warnings;
 };

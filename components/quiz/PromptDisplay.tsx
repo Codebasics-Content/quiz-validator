@@ -7,7 +7,6 @@ interface PromptDisplayProps {
   module: string;
   customModule: string;
   showCustomInput: boolean;
-  llmProvider: string;
   isVisible: boolean;
   isCopied: boolean;
   onClose: () => void;
@@ -19,7 +18,6 @@ export default function PromptDisplay({
   module,
   customModule,
   showCustomInput,
-  llmProvider,
   isVisible,
   isCopied,
   onClose,

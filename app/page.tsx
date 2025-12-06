@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { GraduationCap, Info } from "lucide-react";
 import ModuleSelector from "@/components/quiz/ModuleSelector";
-import LLMProviderSelector from "@/components/quiz/LLMProviderSelector";
 import PromptDisplay from "@/components/quiz/PromptDisplay";
 import ValidationResults from "@/components/quiz/ValidationResults";
 import AnswerDistribution from "@/components/quiz/AnswerDistribution";
@@ -12,11 +11,12 @@ import {
   QuizData,
   ValidationResults as ValidationResultsType,
 } from "@/lib/types";
-import { validateQuizJSON } from "@/lib/utils";
+import { validateQuizJSON, extractJSONFromLLMOutput } from "@/lib/utils";
 import {
   getSystemPrompt,
   getRefinementPrompt,
   getManualQuestionAssistPrompt,
+  getJSONSyntaxFixPrompt,
 } from "@/lib/prompts";
 
 type QuizMode = "ai" | "manual";
@@ -24,7 +24,6 @@ type QuizMode = "ai" | "manual";
 export default function QuizValidatorPage() {
   const [quizMode, setQuizMode] = useState<QuizMode>("ai");
   const [module, setModule] = useState("");
-  const [llmProvider, setLLMProvider] = useState("claude");
   const [jsonInput, setJsonInput] = useState("");
   const [validationResults, setValidationResults] =
     useState<ValidationResultsType | null>(null);
@@ -115,17 +114,15 @@ export default function QuizValidatorPage() {
 
     // Manual mode with user-collected questions
     if (quizMode === "manual" && manualQuestions.trim()) {
-      return getManualQuestionAssistPrompt(
-        selectedModule,
-        manualQuestions,
-        llmProvider,
-      );
+      return getManualQuestionAssistPrompt(selectedModule, manualQuestions);
     }
 
     // Refinement mode for AI-generated quiz with errors
     if (refinementMode && validationResults && jsonInput) {
       try {
-        const existingQuiz = JSON.parse(jsonInput);
+        // Use same extraction logic as main validation to handle markdown fences
+        const cleanedJSON = extractJSONFromLLMOutput(jsonInput);
+        const existingQuiz = JSON.parse(cleanedJSON);
         return getRefinementPrompt(
           selectedModule,
           existingQuiz,
@@ -133,12 +130,15 @@ export default function QuizValidatorPage() {
           validationResults.warnings,
         );
       } catch (e) {
-        return "Invalid JSON - cannot generate refinement prompt";
+        // JSON is completely broken - generate syntax fix prompt instead
+        const errorMsg = e instanceof Error ? e.message : "Unknown parse error";
+        const cleanedJSON = extractJSONFromLLMOutput(jsonInput);
+        return getJSONSyntaxFixPrompt(selectedModule, cleanedJSON, errorMsg);
       }
     }
 
     // AI mode - fresh generation
-    return getSystemPrompt(selectedModule, llmProvider);
+    return getSystemPrompt(selectedModule);
   };
 
   return (
@@ -196,21 +196,16 @@ export default function QuizValidatorPage() {
         {quizMode === "ai" && (
           <div className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-slate-200">
             <h2 className="text-lg font-semibold text-slate-800 mb-4">
-              Step 1: Configure Quiz
+              Step 1: Select Module
             </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div className="mb-6">
               <ModuleSelector
                 selectedModule={module}
                 showCustomInput={showCustomInput}
                 customModule={customModule}
                 onModuleChange={handleModuleChange}
                 onCustomModuleChange={handleCustomModuleChange}
-              />
-
-              <LLMProviderSelector
-                selectedProvider={llmProvider}
-                onProviderChange={setLLMProvider}
               />
             </div>
 
@@ -234,7 +229,6 @@ export default function QuizValidatorPage() {
             module={module}
             customModule={customModule}
             showCustomInput={showCustomInput}
-            llmProvider={llmProvider}
             isVisible={showPrompt}
             isCopied={copiedPrompt}
             onClose={() => setShowPrompt(false)}
@@ -327,11 +321,6 @@ export default function QuizValidatorPage() {
                 customModule={customModule}
                 onModuleChange={handleModuleChange}
                 onCustomModuleChange={handleCustomModuleChange}
-              />
-
-              <LLMProviderSelector
-                selectedProvider={llmProvider}
-                onProviderChange={setLLMProvider}
               />
             </div>
 

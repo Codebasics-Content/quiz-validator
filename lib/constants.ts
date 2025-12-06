@@ -47,6 +47,7 @@ export const MODULES: ModuleOption[] = [
 ];
 
 export const COLUMN_HEADERS = [
+  "id",
   "question",
   "answer1",
   "answer2",
@@ -63,5 +64,5 @@ export const COLUMN_HEADERS = [
   "explanation",
   "timeLimit",
   "imageUrl",
-  // Module column removed - not in Excel template (16 columns A-P)
+  // 17 columns (A-Q): id, question, 9 answers, correctAnswer, points, explanation, time, image
 ];

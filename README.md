@@ -1,170 +1,344 @@
-# Quiz Validator & Generator - Next.js 15
+# Quiz Validator & Generator
 
-A comprehensive Next.js application for generating AI-powered quiz prompts and validating quiz JSON for bootcamp Discord bots.
+### AI-Powered Quiz Generation for Codebasics GenAI & Data Science Bootcamp
 
-## Features
+A research-backed quiz generation system that applies **10 psychological principles** to create quizzes that test understanding, not memorization. Built with Next.js 15 and designed to work with Claude, GPT, and Gemini.
 
-- **Module Selection**: Choose from predefined modules or create custom modules
-- **LLM Provider Support**: Generate prompts for Claude, ChatGPT, or Gemini
-- **JSON Validation**: Comprehensive validation with detailed error reporting
-- **Answer Distribution Analysis**: Prevent student pattern exploitation
-- **Quiz Shuffling**: Randomize answer positions for security
-- **Excel Export**: Copy quiz data directly to Excel spreadsheets
-- **Refinement Prompts**: Generate prompts to fix validation errors
+---
 
-## Tech Stack
+## Why This Exists
 
-- **Framework**: Next.js 15
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS
-- **Icons**: Lucide React
-- **Architecture**: Component-based with modular design
+Traditional quizzes fail learners in predictable ways:
+
+| Problem | Impact | Our Solution |
+|---------|--------|--------------|
+| Longest answer is correct | Students exploit length patterns | Equal word count per question |
+| Position patterns | "When in doubt, pick C" | Shuffled, balanced distribution |
+| Surface-level recall | Memorization over understanding | WHY/HOW questions > WHAT |
+| Weak distractors | Elimination by obviousness | "80% correct with 1 critical flaw" |
+| Generic explanations | No revision value | "PRINCIPLE:" format for recall |
+
+---
+
+## Psychological Framework
+
+This system implements **10 research-backed principles** for effective learning assessment:
+
+### Core Principles
+
+| # | Principle | Research | Implementation |
+|---|-----------|----------|----------------|
+| 1 | **Dual-Process Theory** | Kahneman | Force Type 2 analytical thinking |
+| 2 | **Desirable Difficulties** | Bjork | Productive struggle enhances retention |
+| 3 | **Plausible Distractors** | Haladyna | Target specific misconceptions |
+| 4 | **Elaborative Interrogation** | Pressley et al. | Explanations answer "WHY" |
+| 5 | **Testing Effect** | Roediger & Karpicke | Retrieval practice over recognition |
+
+### Advanced Principles
+
+| # | Principle | Research | Implementation |
+|---|-----------|----------|----------------|
+| 6 | **Hypercorrection Effect** | Butterfield & Metcalfe | Target confident errors |
+| 7 | **Prediction Error Framework** | Rescorla-Wagner | Surprising corrections stick |
+| 8 | **Cognitive Load Theory** | Sweller | Positive framing, short options |
+| 9 | **Deeper Processing** | Craik & Lockhart | Application > factual recall |
+| 10 | **Generation Effect** | Slamecka & Graf | Force reasoning, not matching |
+
+---
+
+## Anti-Exploit Measures
+
+### Equal Word Count Per Question
+```
+Q1 Options (4 words each):
+  "Predicts tokens not computes"     [4 words]
+  "Larger models have bugs"          [4 words]
+  "Training lacked basic math"       [4 words]
+  "GPU limits simple calculations"   [4 words]
+```
+
+### Balanced Position Distribution
+```
+Good:  [2, 1, 4, 3, 1, 4, 2, 3, 4, 2]  Each position: 2-3 times
+Bad:   [1, 1, 1, 2, 2, 2, 3, 3, 4, 4]  Clustered - exploitable
+Bad:   [1, 2, 3, 4, 1, 2, 3, 4, 1, 2]  Sequential - predictable
+```
+
+### Diverse Word Counts Across Quiz
+```
+Q1: 4-word options  |  Q2: 3-word options  |  Q3: 5-word options
+Q4: 2-word options  |  Q5: 4-word options  |  ...varies throughout
+```
+
+---
+
+## Supported Modules
+
+| Module | Topics | Example Question Type |
+|--------|--------|----------------------|
+| **Python** | FastAPI, Pandas, async/await, decorators | "Why does async not make this non-blocking?" |
+| **SQL** | CTEs, window functions, aggregates | "Why does CTE NOT guarantee better performance?" |
+| **Math/Stats** | p-values, confidence intervals, A/B testing | "Why is this p-value interpretation WRONG?" |
+| **Machine Learning** | Bias-variance, regularization, metrics | "Why is accuracy MISLEADING here?" |
+| **Deep Learning** | PyTorch, dropout, ResNet, loss functions | "Why does dropout IMPROVE generalization?" |
+| **NLP** | BERT, tokenization, fine-tuning | "Why the '##' prefix in WordPiece?" |
+| **Gen AI** | RAG, chunking, temperature, hallucination | "Why does RAG still hallucinate?" |
+| **General AI** | LLM limitations, RLHF, scaling laws | "Why isn't alignment permanent?" |
+
+---
 
 ## Project Structure
 
 ```
-quiz-validator-nextjs/
+quiz-validator/
 ├── app/
-│   ├── layout.tsx          # Root layout
-│   ├── page.tsx            # Main page component
-│   └── globals.css         # Global styles
-├── components/
-│   └── quiz/
-│       ├── ModuleSelector.tsx           # Module selection component
-│       ├── LLMProviderSelector.tsx      # LLM provider selection
-│       ├── PromptDisplay.tsx            # Prompt display component
-│       ├── ValidationResults.tsx        # Validation results display
-│       ├── AnswerDistribution.tsx       # Answer distribution analysis
-│       └── QuizExporter.tsx             # Quiz export functionality
+│   ├── layout.tsx              # Root layout
+│   ├── page.tsx                # Main application
+│   └── globals.css             # Global styles
+│
+├── components/quiz/
+│   ├── ModuleSelector.tsx      # Module selection
+│   ├── LLMProviderSelector.tsx # Claude/GPT/Gemini selector
+│   ├── PromptDisplay.tsx       # Generated prompt display
+│   ├── ValidationResults.tsx   # Error/warning display
+│   ├── AnswerDistribution.tsx  # Position balance analysis
+│   └── QuizExporter.tsx        # Excel export functionality
+│
 ├── lib/
-│   ├── types.ts            # TypeScript interfaces
-│   ├── constants.ts        # Application constants
-│   ├── utils.ts            # Utility functions
-│   └── prompts.ts          # Prompt generation logic
-├── public/                 # Static assets
+│   ├── prompts.ts              # Core prompt engineering (1500+ lines)
+│   │   ├── MODULE_EXAMPLES     # 28 research-backed examples
+│   │   ├── getSystemPrompt()   # Main quiz generation prompt
+│   │   ├── getRefinementPrompt() # Error fixing prompt
+│   │   └── getModuleInstructions() # Per-module guidance
+│   ├── types.ts                # TypeScript interfaces
+│   ├── constants.ts            # Application constants
+│   └── utils.ts                # Utility functions
+│
+├── public/                     # Static assets
 ├── package.json
-├── tsconfig.json
 ├── tailwind.config.js
-├── postcss.config.js
-└── next.config.js
+├── tsconfig.json
+└── vercel.json                 # Deployment config
 ```
 
+---
+
+## Core File: `lib/prompts.ts`
+
+The heart of the system. Contains:
+
+### Psychological Principles Header
+```typescript
+/*
+ * PSYCHOLOGICAL PRINCIPLES APPLIED (Codebasics Standards):
+ * 1. DUAL-PROCESS THEORY (Kahneman): Force Type 2 thinking
+ * 2. DESIRABLE DIFFICULTIES (Bjork): Productive struggle
+ * 3. PLAUSIBLE DISTRACTORS (Haladyna): Target misconceptions
+ * ...10 total principles
+ */
+```
+
+### Module Examples (28 Total)
+Each example includes:
+- **Cognitive trap annotation** - What misconception it targets
+- **Word count verification** - Equal words per question
+- **Position variation** - Shuffled correct answers
+- **Research citation** - Where applicable
+
+### Anti-Exploit Rules
+```typescript
+// ANTI-EXPLOIT: OPTION WORD COUNT RULES (CRITICAL!)
+// - Per question: ALL 4 options MUST have SAME word count
+// - Across questions: Vary 2/3/4/5 word options
+// - Correct answer length RANDOMIZED
+```
+
+### Final Verification Checklist
+```typescript
+// FINAL VERIFICATION (BEFORE OUTPUT)
+// □ STEM DIVERSITY: 2-3 WHY, 2-3 HOW, 2-3 WHAT, 1-2 DEBUG
+// □ EQUAL WORDS: Per question ALL 4 options same count
+// □ RANDOM POSITION: Each (1-4) appears 2-3 times
+// □ GRAMMAR: Grammatically correct and meaningful
+```
+
+---
+
 ## Getting Started
+
+### Prerequisites
+- Node.js 18+
+- pnpm (recommended) or npm
 
 ### Installation
 
 ```bash
-npm install
+# Clone the repository
+git clone https://github.com/codebasics/quiz-validator.git
+cd quiz-validator
+
+# Install dependencies
+pnpm install
+
+# Start development server
+pnpm dev
 ```
 
-### Development
+Open [http://localhost:3000](http://localhost:3000)
+
+### Build for Production
 
 ```bash
-npm run dev
+pnpm build
+pnpm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+---
 
-### Build
+## Usage Workflow
 
-```bash
-npm run build
+```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  1. Select      │────▶│  2. Generate     │────▶│  3. Copy to     │
+│     Module      │     │     Prompt       │     │     LLM         │
+└─────────────────┘     └──────────────────┘     └─────────────────┘
+                                                          │
+                                                          ▼
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  6. Export to   │◀────│  5. Fix Errors   │◀────│  4. Paste &     │
+│     Excel       │     │  (if needed)     │     │     Validate    │
+└─────────────────┘     └──────────────────┘     └─────────────────┘
 ```
 
-### Production
+### Step-by-Step
 
-```bash
-npm start
-```
+1. **Select Module** - Choose from 8 predefined modules or create custom
+2. **Choose LLM** - Claude Sonnet 4.5, Gemini 2.5 Pro/Flash, or ChatGPT 5
+3. **Generate Prompt** - Copy the psychology-enhanced system prompt
+4. **Run LLM** - Paste prompt into your LLM, get JSON output
+5. **Validate** - Paste JSON, check for errors/warnings
+6. **Refine** - If errors exist, use refinement prompt to fix
+7. **Export** - Copy validated quiz to Excel for Discord bot
 
-## Usage
-
-1. **Select Module**: Choose a predefined module or create a custom one
-2. **Choose LLM Provider**: Select Claude, ChatGPT, or Gemini
-3. **Generate Prompt**: Click to generate a system prompt
-4. **Copy Prompt**: Use the generated prompt with your LLM
-5. **Paste JSON**: Paste the LLM's JSON output
-6. **Validate**: Click validate to check for errors
-7. **Fix Errors**: Use refinement prompts if validation fails
-8. **Export**: Copy validated quiz to Excel
-
-## Components
-
-### ModuleSelector
-Allows selection from predefined modules or custom module input.
-
-### LLMProviderSelector
-Choose between Claude, ChatGPT, and Gemini for prompt generation.
-
-### PromptDisplay
-Displays the generated system prompt with copy functionality.
-
-### ValidationResults
-Shows validation status, errors, and warnings with improvement tracking.
-
-### AnswerDistribution
-Analyzes correct answer distribution to prevent pattern exploitation.
-
-### QuizExporter
-Provides quiz shuffling and Excel export functionality.
+---
 
 ## Validation Rules
 
-- **Question Length**: 30-200 characters
-- **Option Length**: 15-70 characters
-- **Option Balance**: ±5 character difference
-- **Explanation**: 12-18 words
-- **Time Limit**: 15-60 seconds
-- **Answer Distribution**: Each position 1-4 times
+| Field | Rule | Rationale |
+|-------|------|-----------|
+| Question | 30-200 characters | Enough context without overwhelming |
+| Options | 5-25 chars (text), up to 50 (code) | Prevents length exploitation |
+| Word Balance | ±0 variance per question | Equal cognitive load |
+| Explanation | 12-18 words, starts with "PRINCIPLE:" | Revision-focused format |
+| Time Limit | 20/25/30/35 seconds only | Standardized intervals |
+| Positions | Each 1-4 appears 2-3 times | Prevents position patterns |
+
+---
+
+## LLM Compatibility
+
+Tested and optimized for:
+
+| Provider | Model | Status |
+|----------|-------|--------|
+| Anthropic | Claude Sonnet 4.5 | Recommended |
+| Anthropic | Claude Opus 4.5 | Recommended |
+| Google | Gemini 2.5 Pro | Supported |
+| Google | Gemini 2.5 Flash | Supported |
+| OpenAI | GPT-4o | Supported |
+| OpenAI | ChatGPT 5 | Supported |
+
+---
 
 ## Deployment
 
-### Deploy to Vercel (Recommended)
+### Vercel (Recommended)
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/your-username/quiz-validator)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/codebasics/quiz-validator)
 
-#### Quick Deploy Steps:
-
-1. **Install Vercel CLI** (optional):
 ```bash
+# Or deploy via CLI
 npm install -g vercel
-```
-
-2. **Deploy with CLI**:
-```bash
-cd quiz-validator
 vercel
 ```
 
-3. **Or Deploy via Git**:
-   - Push your code to GitHub
-   - Import project in [Vercel Dashboard](https://vercel.com/dashboard)
-   - Vercel auto-detects Next.js configuration
-   - Deploy automatically on every push
+### Configuration (`vercel.json`)
 
-#### Configuration:
+```json
+{
+  "regions": ["iad1"],
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next"
+}
+```
 
-The project includes `vercel.json` with optimized settings:
-- **Region**: US East (iad1) - change in vercel.json if needed
-- **Build Command**: `npm run build`
-- **Output Directory**: `.next`
-- **Node.js**: 18.x
-- **Security Headers**: Enabled (XSS, Frame Options, Content Type)
+No environment variables required - runs entirely client-side.
 
-#### Environment Variables:
+---
 
-No environment variables required for MVP deployment. The app runs entirely client-side.
+## Research Citations
 
-#### Custom Domain:
+The psychological principles are based on peer-reviewed research:
 
-Add custom domain in Vercel Dashboard → Project Settings → Domains
+1. **Kahneman, D.** (2011). *Thinking, Fast and Slow*. Farrar, Straus and Giroux.
+2. **Bjork, R. A.** (1994). Memory and metamemory considerations in the training of human beings.
+3. **Haladyna, T. M.** (2004). *Developing and Validating Multiple-Choice Test Items*.
+4. **Butterfield, B., & Metcalfe, J.** (2001). Errors committed with high confidence are hypercorrected.
+5. **Roediger, H. L., & Karpicke, J. D.** (2006). The power of testing memory.
+6. **Sweller, J.** (1988). Cognitive load during problem solving.
+7. **Wei, J., et al.** (2022). Chain-of-thought prompting elicits reasoning in large language models.
+8. **Hoffmann, J., et al.** (2022). Training compute-optimal large language models (Chinchilla).
 
-### Alternative Deployment Options
+---
 
-- **Netlify**: Use `netlify.toml` (Next.js support)
-- **AWS Amplify**: Connect GitHub repo
-- **Docker**: Build with `node:18-alpine`
+## Tech Stack
+
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| Next.js | 15.x | React framework |
+| TypeScript | 5.x | Type safety |
+| Tailwind CSS | 3.x | Styling |
+| Lucide React | Latest | Icons |
+| pnpm | 8.x | Package manager |
+
+---
+
+## Contributing
+
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/improvement`)
+3. Commit changes (`git commit -am 'Add improvement'`)
+4. Push to branch (`git push origin feature/improvement`)
+5. Open Pull Request
+
+### Areas for Contribution
+
+- [ ] Additional module examples
+- [ ] New psychological principle implementations
+- [ ] Accessibility improvements
+- [ ] Internationalization (i18n)
+- [ ] Dark mode support
+
+---
 
 ## License
 
-MIT
+MIT License - See [LICENSE](LICENSE) for details.
+
+---
+
+## Acknowledgments
+
+- **Codebasics** - For the GenAI & Data Science Bootcamp curriculum
+- **Research Community** - For the psychological principles that power this system
+- **Contributors** - For continuous improvements
+
+---
+
+<div align="center">
+
+**Built for learners who deserve better quizzes.**
+
+[Report Bug](https://github.com/codebasics/quiz-validator/issues) · [Request Feature](https://github.com/codebasics/quiz-validator/issues)
+
+</div>
