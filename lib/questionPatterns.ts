@@ -2604,25 +2604,26 @@ Focus: BERT, tokenization, embeddings, fine-tuning, Hugging Face`,
  *
  * Per 10 questions:
  * - HARD (30-35s): 1 question - Complex architecture decisions, multi-step debugging
- * - MEDIUM (25-30s): 7 questions - Standard RAG, prompting, parameters, evaluation
+ * - MEDIUM (25-30s): 7 questions - Standard implementation patterns
  * - EASY (20-25s): 2 questions - Tool recognition, basic concepts
  *
- * THEME DISTRIBUTION (Bootcamp Curriculum - 10 questions):
- * 1. RAG Architecture (2 Q) - Chunking, retrieval, reranking, hybrid search
- * 2. Vector DBs & Embeddings (1 Q) - Pinecone, Chroma, embedding models
- * 3. Prompt Engineering (1 Q) - Few-shot, chain-of-thought, system prompts
- * 4. LLM Parameters (1 Q) - Temperature, top_k, top_p, max_tokens
- * 5. Hallucination & Grounding (1 Q) - Detection, mitigation, citations
- * 6. Fine-tuning vs RAG (1 Q) - When to use each, trade-offs
- * 7. Agents & Chains (1 Q) - LangChain, function calling, tool use
- * 8. Evaluation & Testing (1 Q) - Metrics, human evaluation, benchmarks
- * 9. Production & Cost (1 Q) - Latency, caching, cost optimization
+ * TOPICS: DYNAMICALLY DISCOVERED VIA WEB SEARCH
+ * - Topics are NOT hardcoded - LLM must search for current bootcamp curriculum
+ * - Search "Codebasics GenAI bootcamp" to find actual modules taught
+ * - Align questions with discovered bootcamp topics
+ * - Each topic must be VERIFIED via web search before use
+ *
+ * STRICT SEPARATION FROM GENERAL AI:
+ * - Gen AI = HOW to build (code, architecture, debugging, implementation)
+ * - General AI = WHAT is happening (industry, trends, ethics, laws, research)
+ * - NEVER overlap - no industry/ethics/AGI questions in Gen AI
  */
 
 export const GEN_AI_PATTERNS: ModulePatterns = {
   description: `Generative AI for building LLM applications (Codebasics Bootcamp).
 Tests system design trade-offs, debugging, and implementation decisions.
-Focus: RAG, chunking, vector DBs, prompting, agents, evaluation, production.`,
+TOPICS: Dynamically discovered via web search - align with Codebasics bootcamp curriculum.
+SEPARATION: Technical HOW-TO only - NEVER overlap with General AI (industry awareness).`,
 
   patterns: [
     // HARD PATTERNS (30-35s) - 1 per quiz

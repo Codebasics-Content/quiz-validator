@@ -944,38 +944,27 @@ export const getModuleInstructions = (moduleName: string): string => {
   // For modules with pattern definitions, generate dynamically
   if (modulePatterns && (moduleName === "Gen AI" || moduleName === "General AI")) {
     const patternList = generatePatternList(moduleName);
-    const themeDistribution = generateThemeDistribution(moduleName);
     const difficultyDist = generateDifficultyDistribution(config);
 
-    // Dynamic context injection
-    const contextMap: Record<string, string> = {
-      "Gen AI": "Codebasics GenAI Bootcamp - students building LLM applications",
-      "General AI": "Codebasics GenAI & Data Science Bootcamp - students know Python, ML, DL basics",
-    };
+    // Gen AI - RESEARCH-DRIVEN DYNAMIC TOPICS (NO HARDCODING)
+    if (moduleName === "Gen AI") {
+      return `**CONTEXT:** Codebasics GenAI Bootcamp - students building LLM applications
+**FOCUS:** Technical implementation, system design trade-offs, debugging, production decisions
+**DISTINCTION:** Technical implementation (code/architecture) - NEVER overlap with General AI (industry awareness)
 
-    const focusMap: Record<string, string> = {
-      "Gen AI": "System design trade-offs, debugging, and production decisions",
-      "General AI": "AI industry awareness to complement technical skills learned in bootcamp",
-    };
+**⚠️ MANDATORY RESEARCH STEP - DISCOVER TOPICS DYNAMICALLY:**
+1. **SEARCH** "Codebasics GenAI bootcamp curriculum" to find actual bootcamp modules
+2. **SEARCH** "RAG implementation best practices ${new Date().getFullYear()}"
+3. **SEARCH** "LLM application development topics ${new Date().getFullYear()}"
+4. **ALIGN** questions with bootcamp brochure topics - DO NOT invent topics
+5. **VERIFY** each topic is taught in the bootcamp before creating questions
 
-    const distinctionMap: Record<string, string> = {
-      "Gen AI": "Technical implementation (code/architecture) - NOT General AI (industry awareness)",
-      "General AI": "NOT Gen AI (RAG/prompting code) - this is ANALYTICAL UNDERSTANDING",
-    };
-
-    const forbiddenMap: Record<string, string> = {
-      "Gen AI": '"What is an LLM?" | Basic definitions | No architecture reasoning',
-      "General AI": "Code snippets | Deep math | Overlap with Gen AI technical questions",
-    };
-
-    const requiredMap: Record<string, string> = {
-      "Gen AI": "WHY RAG hallucinates, HOW chunking affects retrieval, DEBUG pipeline issues",
-      "General AI": "WHY concepts matter, HOW trends affect careers, EVALUATE claims critically",
-    };
-
-    return `**CONTEXT:** ${contextMap[moduleName]}
-**FOCUS:** ${focusMap[moduleName]}
-**DISTINCTION:** ${distinctionMap[moduleName]}
+**⚠️ TOPIC DISCOVERY RULES (NEVER HARDCODE):**
+- Topics MUST come from web search results, NOT from this prompt
+- Search for current GenAI implementation practices
+- Search for bootcamp-specific curriculum alignment
+- Each question topic must be VERIFIED via web search
+- If a topic cannot be verified, DO NOT use it
 
 **⚠️ DIFFICULTY DISTRIBUTION (MANDATORY - per ${config.questionsPerQuiz} questions):**
 ${difficultyDist}
@@ -983,14 +972,43 @@ ${difficultyDist}
 **⚠️ PATTERN TYPES (from module definition):**
 ${patternList}
 
-**FORBIDDEN:** ${forbiddenMap[moduleName]}
-**REQUIRED:** ${requiredMap[moduleName]}
+**STRICT SEPARATION FROM GENERAL AI:**
+- Gen AI = HOW to build (code, architecture, debugging)
+- General AI = WHAT is happening (industry, trends, ethics)
+- NEVER ask about industry trends, ethics, laws, AGI in Gen AI
+- NEVER ask about code implementation in General AI
 
-${moduleName === "General AI" ? `**⚠️ RESEARCH VERIFICATION RULE:**
+**FORBIDDEN:** "What is an LLM?" | Basic definitions | Industry awareness questions | Ethics/Laws/AGI topics
+**REQUIRED:** Implementation HOW-TOs, debugging scenarios, architecture trade-offs, production considerations`;
+    }
+
+    // General AI - Industry awareness (analytical understanding)
+    if (moduleName === "General AI") {
+      return `**CONTEXT:** Codebasics GenAI & Data Science Bootcamp - students know Python, ML, DL basics
+**FOCUS:** AI industry awareness to complement technical skills learned in bootcamp
+**DISTINCTION:** NOT Gen AI (RAG/prompting code) - this is ANALYTICAL UNDERSTANDING
+
+**⚠️ DIFFICULTY DISTRIBUTION (MANDATORY - per ${config.questionsPerQuiz} questions):**
+${difficultyDist}
+
+**⚠️ PATTERN TYPES (from module definition):**
+${patternList}
+
+**STRICT SEPARATION FROM GEN AI:**
+- General AI = WHAT is happening (industry, trends, ethics, laws, research)
+- Gen AI = HOW to build (code, architecture, debugging)
+- NEVER ask about code implementation, RAG debugging, chunking strategies
+- NEVER overlap with Gen AI technical topics
+
+**FORBIDDEN:** Code snippets | Deep math | RAG implementation | Chunking | Vector DB code
+**REQUIRED:** WHY concepts matter, HOW trends affect careers, EVALUATE claims critically
+
+**⚠️ RESEARCH VERIFICATION RULE:**
 - SEARCH THE INTERNET for current information
 - Use ONLY TIMELESS PRINCIPLES if cannot verify
 - FORBIDDEN: Specific model names from training data, benchmark scores, "latest" claims
-- Use relative terms: "current generation models", "recent research suggests"` : ""}`;
+- Use relative terms: "current generation models", "recent research suggests"`;
+    }
   }
 
   // For base modules, use simple template
