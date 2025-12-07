@@ -52,8 +52,8 @@ export interface ParsedTSVQuestion {
   correctAnswer: number; // 1-4
   explanation: string;
   timeLimit: number;
-  minPoints: number;
-  maxPoints: number;
+  minPoints: string; // Empty string "" - Discord bot auto-calculates
+  maxPoints: string; // Empty string "" - Discord bot auto-calculates
   imageUrl: string;
 }
 

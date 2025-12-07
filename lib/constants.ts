@@ -34,15 +34,15 @@ export const MODULES: ModuleOption[] = [
   },
   {
     value: "Gen AI",
-    label: "Generative AI (Course)",
+    label: "Generative AI (Technical)",
     icon: "✨",
     category: "Gen AI",
   },
   {
     value: "General AI",
-    label: "Gen AI News & Trends",
+    label: "AI Awareness (UPSC Style)",
     icon: "⚡",
-    category: "Gen AI",
+    category: "AI Awareness",
   },
 ];
 

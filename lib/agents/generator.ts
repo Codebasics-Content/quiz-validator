@@ -7,7 +7,7 @@
  */
 
 import { RelaxedQuizData, QuestionWithMetrics } from "../types";
-import { getModuleInstructions, getModuleExamples } from "../prompts";
+import { getModuleInstructions } from "../prompts";
 
 /**
  * Simplified generator prompt - focuses ONLY on content quality
@@ -18,7 +18,8 @@ export const getGeneratorPrompt = (moduleName: string): string => {
   const isGeneralAI = moduleName === "General AI";
 
   // UPSC-style patterns for General AI module (Codebasics Bootcamp context)
-  const upscPatterns = isGeneralAI ? `
+  const upscPatterns = isGeneralAI
+    ? `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🎓 CONTEXT: Codebasics GenAI & Data Science Bootcamp
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -66,7 +67,8 @@ Difficulty: INTERMEDIATE - builds on bootcamp knowledge, tests reasoning
 NOT too simple: Assumes Python/ML/DL bootcamp knowledge
 NOT too complex: No research-level math or architecture details
 JUST RIGHT: Analytical reasoning about AI concepts relevant to projects/career
-` : "";
+`
+    : "";
 
   return `You are an expert educational content creator for a ${moduleName} bootcamp.
 ${isGeneralAI ? "\n⚠️ CRITICAL: Use web_search tool to find latest 2025 developments BEFORE generating questions!\n" : ""}
@@ -142,15 +144,10 @@ Your job: Focus on SPECIFIC, TECHNICAL questions with concrete examples.
 ${moduleInstructions}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📚 CONCRETE EXAMPLES: Learn from High-Quality Questions
+📚 QUESTION QUALITY GUIDELINES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Study these examples from past successful quizzes for ${moduleName}.
-Notice the SPECIFICITY pattern - every question names exact tools, functions, or scenarios:
-
-${getModuleExamples(moduleName)}
-
-**Key Takeaway from Examples:**
+**Key Requirements for High-Quality Questions:**
 - Questions name SPECIFIC tools/libraries (Pandas, FastAPI, @property, etc.)
 - Questions include CONCRETE parameters, syntax, or code snippets
 - Questions reference SPECIFIC scenarios with details (not abstract concepts)

@@ -13,7 +13,7 @@ import { QuizData } from "@/lib/types";
 import {
   generateTableData,
   copyTableToClipboard,
-  shuffleOptions,
+  smartShuffleQuiz,
   isDistributionUnbalanced,
 } from "@/lib/utils";
 import { COLUMN_HEADERS } from "@/lib/constants";
@@ -43,10 +43,8 @@ export default function QuizExporter({
   };
 
   const handleShuffleOptions = () => {
-    const shuffled: QuizData = {
-      module: quiz.module,
-      questions: quiz.questions.map((q) => shuffleOptions(q)),
-    };
+    // Use smart shuffle that guarantees balanced distribution
+    const shuffled = smartShuffleQuiz(quiz);
     onShuffleQuiz(shuffled);
   };
 

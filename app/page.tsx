@@ -19,7 +19,7 @@ import {
   getJSONSyntaxFixPrompt,
 } from "@/lib/prompts";
 
-type QuizMode = "ai" | "manual";
+type QuizMode = "ai" | "refine";
 
 export default function QuizValidatorPage() {
   const [quizMode, setQuizMode] = useState<QuizMode>("ai");
@@ -39,6 +39,7 @@ export default function QuizValidatorPage() {
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [customModule, setCustomModule] = useState("");
   const [showCustomInput, setShowCustomInput] = useState(false);
+  const [humanFeedback, setHumanFeedback] = useState("");
   const [manualQuestions, setManualQuestions] = useState("");
 
   const handleModuleChange = (value: string) => {
@@ -86,11 +87,16 @@ export default function QuizValidatorPage() {
 
     setValidationResults(results);
 
-    if (results.valid && results.data) {
+    // Always show QuizExporter (with Shuffle button) if we have valid JSON structure
+    // Pattern errors are FIXED by shuffling, not by LLM regeneration
+    if (results.data) {
       setValidatedQuiz(results.data);
       setShuffledQuiz(null);
-      setShowSuccessAnimation(true);
-      setTimeout(() => setShowSuccessAnimation(false), 3000);
+
+      if (results.valid) {
+        setShowSuccessAnimation(true);
+        setTimeout(() => setShowSuccessAnimation(false), 3000);
+      }
     } else {
       setValidatedQuiz(null);
       setShuffledQuiz(null);
@@ -99,42 +105,74 @@ export default function QuizValidatorPage() {
     setTimeout(() => setIsValidating(false), 300);
   };
 
+  // For Step 2: When validation fails, generate prompt with errors
   const handleGenerateRefinementPrompt = () => {
     setRefinementMode(true);
     setShowPrompt(true);
   };
 
+  // For Step 1: Generate manual/Excel conversion prompt (NOT refinement)
   const handleGenerateManualPrompt = () => {
+    setRefinementMode(false); // Explicitly set to false for Step 1
     setShowPrompt(true);
-    setRefinementMode(false);
+  };
+
+  // Handle shuffle and re-validate to update error display
+  const handleShuffleQuiz = (shuffled: QuizData) => {
+    setShuffledQuiz(shuffled);
+
+    // Re-validate the shuffled quiz to update errors/warnings
+    const selectedModule = showCustomInput ? customModule : module;
+    const results = validateQuizJSON(JSON.stringify(shuffled), selectedModule);
+    setValidationResults(results);
+
+    // Update validatedQuiz with shuffled data
+    if (results.data) {
+      setValidatedQuiz(results.data);
+    }
+
+    if (results.valid) {
+      setShowSuccessAnimation(true);
+      setTimeout(() => setShowSuccessAnimation(false), 3000);
+    }
   };
 
   const getPromptContent = (): string => {
     const selectedModule = showCustomInput ? customModule : module;
 
-    // Manual mode with user-collected questions
-    if (quizMode === "manual" && manualQuestions.trim()) {
-      return getManualQuestionAssistPrompt(selectedModule, manualQuestions);
+    // PRIORITY 1: Refinement of validated JSON (when validation failed and user wants to fix)
+    // refinementMode is set by handleGenerateRefinementPrompt when user clicks button in Step 2
+    if (refinementMode) {
+      // Check if we have JSON to refine
+      if (jsonInput && jsonInput.trim()) {
+        try {
+          const cleanedJSON = extractJSONFromLLMOutput(jsonInput);
+          const existingQuiz = JSON.parse(cleanedJSON);
+          return getRefinementPrompt(
+            selectedModule,
+            existingQuiz,
+            validationResults?.errors || [],
+            validationResults?.warnings || [],
+            humanFeedback,
+          );
+        } catch (e) {
+          const errorMsg =
+            e instanceof Error ? e.message : "Unknown parse error";
+          const cleanedJSON = extractJSONFromLLMOutput(jsonInput);
+          return getJSONSyntaxFixPrompt(selectedModule, cleanedJSON, errorMsg);
+        }
+      }
+      // If refinementMode but no jsonInput, fall through to other options
     }
 
-    // Refinement mode for AI-generated quiz with errors
-    if (refinementMode && validationResults && jsonInput) {
-      try {
-        // Use same extraction logic as main validation to handle markdown fences
-        const cleanedJSON = extractJSONFromLLMOutput(jsonInput);
-        const existingQuiz = JSON.parse(cleanedJSON);
-        return getRefinementPrompt(
-          selectedModule,
-          existingQuiz,
-          validationResults.errors,
-          validationResults.warnings,
-        );
-      } catch (e) {
-        // JSON is completely broken - generate syntax fix prompt instead
-        const errorMsg = e instanceof Error ? e.message : "Unknown parse error";
-        const cleanedJSON = extractJSONFromLLMOutput(jsonInput);
-        return getJSONSyntaxFixPrompt(selectedModule, cleanedJSON, errorMsg);
-      }
+    // PRIORITY 2: Refine mode - Excel/text input with human feedback (Step 1)
+    // Only if NOT in refinementMode (which is for Step 2)
+    if (!refinementMode && quizMode === "refine" && manualQuestions.trim()) {
+      return getManualQuestionAssistPrompt(
+        selectedModule,
+        manualQuestions,
+        humanFeedback,
+      );
     }
 
     // AI mode - fresh generation
@@ -161,7 +199,7 @@ export default function QuizValidatorPage() {
         {/* Quiz Mode Toggle */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-slate-200">
           <h2 className="text-lg font-semibold text-slate-800 mb-4">
-            Quiz Creation Mode
+            Select Mode
           </h2>
           <div className="flex gap-3">
             <button
@@ -172,23 +210,23 @@ export default function QuizValidatorPage() {
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >
-              AI-Generated Quiz
+              🆕 New Quiz Generation
             </button>
             <button
-              onClick={() => setQuizMode("manual")}
+              onClick={() => setQuizMode("refine")}
               className={`flex-1 px-6 py-3 rounded-lg font-medium transition-all ${
-                quizMode === "manual"
-                  ? "bg-purple-600 text-white shadow-md"
+                quizMode === "refine"
+                  ? "bg-amber-600 text-white shadow-md"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >
-              Manual Entry
+              ✏️ Existing Quiz Refinement
             </button>
           </div>
           <p className="text-sm text-gray-600 mt-3">
             {quizMode === "ai"
-              ? "Generate quiz using AI with system prompts"
-              : "Manually enter questions one by one with guided assistance"}
+              ? "Generate a fresh quiz using AI with system prompts"
+              : "Refine/fix an existing quiz JSON with human feedback"}
           </p>
         </div>
 
@@ -288,33 +326,62 @@ export default function QuizValidatorPage() {
                 </button>
               )}
             </div>
+
+            {/* Human Feedback Input for Refinement */}
+            {validationResults && !validationResults.valid && (
+              <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <label className="block text-sm font-semibold text-amber-800 mb-2">
+                  🎯 Human Feedback (Optional but Recommended)
+                </label>
+                <textarea
+                  value={humanFeedback}
+                  onChange={(e) => setHumanFeedback(e.target.value)}
+                  placeholder={`Add specific feedback for the LLM to focus on during refinement, for example:
+
+• Q3 is too long, make it shorter
+• Q8 has quantification (45%), remove specific numbers
+• Add more COMPARE type questions
+• Q5 and Q7 are on same topic, change Q7
+• Make options more balanced in length
+• Q10 should be Assertion-Reason format`}
+                  className="w-full h-32 px-4 py-3 border border-amber-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none"
+                />
+                <p className="text-xs text-amber-700 mt-2">
+                  This feedback will be prioritized over auto-detected errors in
+                  the refinement prompt
+                </p>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Manual Mode: User-Collected Questions */}
-        {quizMode === "manual" && (
-          <div className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-slate-200">
+        {/* Existing Quiz Refinement Mode - Step 1: Excel/Text Input */}
+        {quizMode === "refine" && (
+          <div className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-amber-200 border-l-4 border-l-amber-500">
             <h2 className="text-lg font-semibold text-slate-800 mb-4">
-              Step 1: Paste Your Collected Questions
+              Step 1: Paste Existing Quiz (Excel/Text)
             </h2>
 
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4 flex items-start gap-3">
-              <Info className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-purple-700">
-                <p className="font-semibold mb-1">Manual Mode Instructions:</p>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 flex items-start gap-3">
+              <Info className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-amber-700">
+                <p className="font-semibold mb-1">
+                  How to Refine an Existing Quiz:
+                </p>
                 <ol className="list-decimal list-inside space-y-1">
-                  <li>Select the module for your questions</li>
-                  <li>Paste your collected questions below (any format)</li>
-                  <li>Click "Generate Assist Prompt" to format them</li>
+                  <li>Select the module for your quiz</li>
                   <li>
-                    AI will preserve your questions and add missing ones if
-                    needed
+                    Paste your existing questions (from Excel/spreadsheet)
                   </li>
+                  <li>Add your human feedback (what to fix/improve)</li>
+                  <li>Click &quot;Generate Refinement Prompt&quot;</li>
+                  <li>AI will convert to JSON with your feedback applied</li>
                 </ol>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            {/* Module Selection */}
+            <div className="mb-6">
               <ModuleSelector
                 selectedModule={module}
                 showCustomInput={showCustomInput}
@@ -324,46 +391,142 @@ export default function QuizValidatorPage() {
               />
             </div>
 
+            {/* Existing Quiz Input - Excel/Text format */}
             <div className="mb-4">
               <label className="block text-sm font-medium text-slate-700 mb-2">
-                Your Collected Questions
+                Existing Quiz (Paste from Excel/Spreadsheet)
               </label>
               <textarea
                 value={manualQuestions}
                 onChange={(e) => setManualQuestions(e.target.value)}
-                placeholder={`Paste your questions here in any format, for example:
+                placeholder={`Paste your existing questions from Excel/spreadsheet:
 
-1. What is overfitting in machine learning?
-2. Explain the difference between supervised and unsupervised learning
-3. How does cross-validation work?
+Q1	What is the main benefit of RAG?	Reduces hallucinations	Faster training	Lower cost	Better UI	1
+Q2	Which technique uses adapters?	LoRA	RAG	Prompting	Chunking	1
 
-Or:
+Or plain text:
+1. What is overfitting? (Answer: When model memorizes training data)
+2. Explain bias-variance tradeoff...
 
-- Question: What is regularization?
-  Answer: L1/L2 penalty to prevent overfitting
-- Question: What is batch normalization?
-  ...
-
-The AI will format them properly and generate missing questions to reach 10 total.`}
-                className="w-full h-64 px-4 py-3 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none font-mono"
+AI will convert to proper JSON format with your feedback applied.`}
+                className="w-full h-48 px-4 py-3 border border-slate-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none"
               />
               <p className="text-xs text-slate-500 mt-2">
-                {manualQuestions.trim().length} characters • AI will preserve
-                your exact questions
+                {manualQuestions.trim().length} characters • Supports Excel TSV,
+                CSV, or plain text
               </p>
             </div>
 
+            {/* Human Feedback Input */}
+            <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <label className="block text-sm font-semibold text-amber-800 mb-2">
+                🎯 Human Feedback (What to Fix/Improve)
+              </label>
+              <textarea
+                value={humanFeedback}
+                onChange={(e) => setHumanFeedback(e.target.value)}
+                placeholder={`Describe what you want the AI to fix or improve:
+
+• Q3 is too long, make it shorter
+• Q8 has quantification (45%), remove specific numbers
+• Add more COMPARE type questions
+• Q5 and Q7 are on same topic, change Q7
+• Make options more balanced in length
+• Q10 should be Assertion-Reason format`}
+                className="w-full h-32 px-4 py-3 border border-amber-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none"
+              />
+              <p className="text-xs text-amber-700 mt-2">
+                Your feedback will be the TOP PRIORITY during conversion
+              </p>
+            </div>
+
+            {/* Generate Prompt Button - Step 1 uses Manual Prompt */}
             <button
               onClick={handleGenerateManualPrompt}
               disabled={!manualQuestions.trim() || (!module && !customModule)}
               className={`w-full px-6 py-3 rounded-lg font-medium transition-all ${
                 manualQuestions.trim() && (module || customModule)
-                  ? "bg-purple-600 text-white hover:bg-purple-700"
+                  ? "bg-amber-600 text-white hover:bg-amber-700"
                   : "bg-slate-300 text-slate-500 cursor-not-allowed"
               }`}
             >
-              Generate Assist Prompt for Your Questions
+              Generate Conversion Prompt
             </button>
+          </div>
+        )}
+
+        {/* Existing Quiz Refinement Mode - Step 2: Validate JSON */}
+        {quizMode === "refine" && (
+          <div className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-slate-200">
+            <h2 className="text-lg font-semibold text-slate-800 mb-4">
+              Step 2: Validate Converted JSON
+            </h2>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 flex items-start gap-3">
+              <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-blue-700">
+                <p>
+                  After AI converts your questions to JSON, paste the result
+                  here to validate.
+                </p>
+              </div>
+            </div>
+
+            <textarea
+              value={jsonInput}
+              onChange={(e) => setJsonInput(e.target.value)}
+              placeholder="Paste the AI-generated JSON here for validation..."
+              className="w-full h-48 px-4 py-3 border border-slate-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            />
+
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={handleValidate}
+                disabled={!jsonInput.trim() || (!module && !customModule)}
+                className={`flex-1 px-6 py-3 rounded-lg font-medium transition-all ${
+                  jsonInput.trim() && (module || customModule)
+                    ? isValidating
+                      ? "bg-yellow-600 text-white"
+                      : "bg-green-600 text-white hover:bg-green-700"
+                    : "bg-slate-300 text-slate-500 cursor-not-allowed"
+                }`}
+              >
+                {isValidating ? "Validating..." : "Validate Quiz JSON"}
+              </button>
+
+              {validationResults && !validationResults.valid && (
+                <button
+                  onClick={handleGenerateRefinementPrompt}
+                  className="px-6 py-3 rounded-lg font-medium bg-purple-600 text-white hover:bg-purple-700 transition-all"
+                >
+                  Generate Refinement Prompt
+                </button>
+              )}
+            </div>
+
+            {/* Human Feedback Input for Refinement when validation fails */}
+            {validationResults && !validationResults.valid && (
+              <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <label className="block text-sm font-semibold text-amber-800 mb-2">
+                  🎯 Human Feedback for Re-Refinement (Optional)
+                </label>
+                <textarea
+                  value={humanFeedback}
+                  onChange={(e) => setHumanFeedback(e.target.value)}
+                  placeholder={`Add specific feedback for the LLM to focus on:
+
+• Q3 and Q5 have same topic - change Q5
+• Q8 has quantification (45%), remove numbers
+• Add more COMPARE type questions
+• Make options more balanced in length`}
+                  className="w-full h-32 px-4 py-3 border border-amber-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none"
+                />
+                <p className="text-xs text-amber-700 mt-2">
+                  This feedback + validation errors will be included in the
+                  refinement prompt
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -389,7 +552,7 @@ The AI will format them properly and generate missing questions to reach 10 tota
           <QuizExporter
             quiz={validatedQuiz}
             shuffledQuiz={shuffledQuiz}
-            onShuffleQuiz={setShuffledQuiz}
+            onShuffleQuiz={handleShuffleQuiz}
           />
         )}
       </div>

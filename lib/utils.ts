@@ -29,14 +29,21 @@ const MODULE_TIME_MULTIPLIERS: Record<string, number> = {
 };
 
 export const VALIDATION_RULES = {
-  question: { min: 30, max: 200 },
+  // Discord quiz reality: GIF spam chaos, mobile users, time pressure
+  // Limits optimized for: readable at a glance, no scrolling, fast comprehension
+  question: {
+    min: 20,
+    max: 400, // Standard questions - one-screen readable on mobile amid GIF spam
+    statementBased: { max: 450 }, // Compact statement format (MAX 2 short statements)
+    // Note: Discord allows 4096 but quiz UX needs instant readability
+  },
   option: {
-    plainText: { min: 5, max: 25 }, // Plain text options (strict, no fluff)
-    code: { min: 5, max: 50 }, // Code with symbols/backticks
+    plainText: { min: 3, max: 60 }, // Must fit one line on mobile
+    code: { min: 3, max: 80 }, // Code slightly longer but still single-line
   },
   optionBalance: {
-    plainText: 15, // Max variance for plain text (5-25 char range = 20 span, allow 15 diff)
-    code: 25, // Max variance for code options (5-50 char range = 45 span, allow 25 diff)
+    plainText: 25, // Max variance for plain text (flexible)
+    code: 30, // Max variance for code options
   },
   explanation: { minWords: 12, maxWords: 18 },
   timeLimit: { min: 15, max: 60 },
@@ -277,40 +284,118 @@ export const calculateRecommendedTimeLimit = (
   question: Question,
   module?: string,
 ): number => {
-  // Step 1: Analyze content complexity
-  const complexity = analyzeContentComplexity(question);
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PSYCHOLOGICALLY-INFORMED TIME CALCULATION (Dec 2025 Rewrite)
+  // Formula: GIF Overhead + Reading Time + Thinking Time
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  // Step 2: Detect question type
-  const questionType = detectQuestionType(question);
+  const qText = question.question || "";
+  const chars = qText.length;
+  const options = [
+    question.answer1 || "",
+    question.answer2 || "",
+    question.answer3 || "",
+    question.answer4 || "",
+  ];
+  const totalOptionChars = options.reduce((sum, opt) => sum + opt.length, 0);
+  const totalChars = chars + totalOptionChars;
 
-  // Step 3: Calculate base score using original algorithm
-  let timeScore = 20;
+  // ─────────────────────────────────────────────────────────────────────────
+  // 1. GIF CHAOS OVERHEAD (constant) - time to find question amid spam
+  // ─────────────────────────────────────────────────────────────────────────
+  const overheadSeconds = 5;
 
-  timeScore += Math.min(5, Math.floor(complexity.questionLength / 50));
-  timeScore += Math.min(4, Math.floor(complexity.avgOptionLength / 30));
+  // ─────────────────────────────────────────────────────────────────────────
+  // 2. READING TIME - direct scaling with character count
+  // ~35-40 chars/second for fast scanning under time pressure
+  // ─────────────────────────────────────────────────────────────────────────
+  const readingSeconds = Math.ceil(totalChars / 38);
 
-  if (complexity.hasCode) timeScore += 3;
-  if (complexity.hasMath) timeScore += 2;
-  if (complexity.complexityKeywordCount > 0) timeScore += 2;
-  if (complexity.maxOptionLength > 60) timeScore += 2;
+  // ─────────────────────────────────────────────────────────────────────────
+  // 3. COMPLEXITY SCORE - determines thinking time
+  // ─────────────────────────────────────────────────────────────────────────
+  let complexityScore = 0;
 
-  // Step 4: Normalize to round interval [20, 25, 30, 35]
-  let normalized = normalizeTimeToInterval(timeScore, complexity, questionType);
+  // Length contributes to complexity (0-10 points based on question length)
+  complexityScore += Math.floor(chars / 50);
 
-  // Step 5: Apply module adjustment if provided
-  if (module) {
-    normalized = calculateModuleAdjustedTime(normalized, module);
-    // Re-normalize after module adjustment to ensure round interval
-    const tempComplexity = { ...complexity };
-    normalized = normalizeTimeToInterval(
-      normalized,
-      tempComplexity,
-      questionType,
+  // Content complexity indicators
+  const hasCode = /[`{}()\[\]]/.test(qText);
+  const hasDebugging =
+    /debug|error|fix|bug|issue|exception|wrong|incorrect/i.test(qText);
+  const hasMath = /\d+[×\*\/\+\-]\d+|\d+\s*(tokens?|%|GB|MB|parameters?)/i.test(
+    qText,
+  );
+  const hasComparison =
+    /compare|vs\.?|versus|difference|advantage|disadvantage|trade-?off/i.test(
+      qText,
     );
+  const isStatementBased =
+    /consider the following|how many.*statements?|which.*statements?|assertion.*reason|statement.*(i|1|one)/i.test(
+      qText,
+    );
+  const isNegativeFormat =
+    /which.*(not|incorrect|false|invalid)|not.*correct|cannot|never/i.test(
+      qText,
+    );
+  const hasAnalysis =
+    /analyze|evaluate|assess|why does|what causes|consequence/i.test(qText);
+
+  if (hasCode) complexityScore += 3;
+  if (hasDebugging) complexityScore += 4;
+  if (hasMath) complexityScore += 2;
+  if (hasComparison) complexityScore += 3;
+  if (isStatementBased) complexityScore += 5;
+  if (isNegativeFormat) complexityScore += 2;
+  if (hasAnalysis) complexityScore += 2;
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 4. THINKING TIME - based on inferred difficulty from complexity score
+  // ─────────────────────────────────────────────────────────────────────────
+  let thinkingSeconds: number;
+  let inferredDifficulty: string;
+
+  if (complexityScore <= 4) {
+    thinkingSeconds = 7; // EASY - quick recall
+    inferredDifficulty = "easy";
+  } else if (complexityScore <= 8) {
+    thinkingSeconds = 11; // MEDIUM - some reasoning
+    inferredDifficulty = "medium";
+  } else if (complexityScore <= 13) {
+    thinkingSeconds = 16; // HARD - connect concepts
+    inferredDifficulty = "hard";
+  } else {
+    thinkingSeconds = 22; // VERY HARD - complex analysis
+    inferredDifficulty = "veryHard";
   }
 
-  // Step 6: Final clamp to valid range
-  return Math.min(Math.max(normalized, 20), 35);
+  // ─────────────────────────────────────────────────────────────────────────
+  // 5. TOTAL RAW TIME
+  // ─────────────────────────────────────────────────────────────────────────
+  let rawTime = overheadSeconds + readingSeconds + thinkingSeconds;
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 6. STATEMENT-BASED MINIMUM (always needs full reading + reasoning time)
+  // ─────────────────────────────────────────────────────────────────────────
+  if (isStatementBased && rawTime < 30) {
+    rawTime = 30;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 7. MODULE ADJUSTMENT (some modules are inherently harder)
+  // ─────────────────────────────────────────────────────────────────────────
+  if (module) {
+    const multiplier = MODULE_TIME_MULTIPLIERS[module] || 1.0;
+    rawTime = Math.round(rawTime * multiplier);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 8. NORMALIZE TO INTERVALS [20, 25, 30, 35] - round UP to next interval
+  // ─────────────────────────────────────────────────────────────────────────
+  const intervals = [20, 25, 30, 35];
+  const finalTime = intervals.find((interval) => interval >= rawTime) || 35;
+
+  return finalTime;
 };
 
 // ============================================================================
@@ -763,6 +848,200 @@ export const validateQuizSpecificity = (questions: Question[]): string[] => {
   return warnings;
 };
 
+/**
+ * STRICT Theme/Topic/Type Diversity Validation
+ * Returns ERRORS (not warnings) for duplicate themes, topics, or question types
+ */
+export const validateThemeDiversity = (questions: Question[]): string[] => {
+  const errors: string[] = [];
+
+  // Extract key themes/topics from each question
+  const extractThemes = (q: Question): string[] => {
+    const text = q.question.toLowerCase();
+    const themes: string[] = [];
+
+    // Question type detection - aligned with prompt types
+    // ANALYZE - "What factors contribute to X?" "Why does X happen?"
+    if (
+      /what factors|factors contribute|why does|why do|why is|why are|what causes|what drives/i.test(
+        text,
+      )
+    )
+      themes.push("ANALYZE");
+    // EVALUATE - "Which approach is most effective?" "What is the PRIMARY reason?"
+    else if (
+      /most effective|primary reason|best approach|which.*best|main benefit|key advantage|most appropriate/i.test(
+        text,
+      )
+    )
+      themes.push("EVALUATE");
+    // COMPARE - "How does X differ from Y?" "What distinguishes X from Y?"
+    else if (
+      /compare|vs|versus|difference|differ|distinguish|how does.*differ|unlike/i.test(
+        text,
+      )
+    )
+      themes.push("COMPARE");
+    // PREDICT - "What would happen if X?" "What is the likely outcome?"
+    else if (
+      /what happens|what would|predict|output|result|likely outcome|consequence of|if.*then/i.test(
+        text,
+      )
+    )
+      themes.push("PREDICT");
+    // CAUSE-EFFECT - "What causes X?" "What is the consequence of X?"
+    else if (
+      /cause|because|lead to|result in|consequence|due to|effect of|impact of/i.test(
+        text,
+      )
+    )
+      themes.push("CAUSE-EFFECT");
+    // IDENTIFY - "Which is an example of X?" "What characterizes X?"
+    else if (
+      /which is an example|example of|characterizes|characteristic|identify|which.*represents/i.test(
+        text,
+      )
+    )
+      themes.push("IDENTIFY");
+    // CRITIQUE - "What is the main limitation?" "Which is NOT a valid argument?"
+    else if (
+      /limitation|drawback|weakness|not.*valid|criticism|flaw|shortcoming|challenge/i.test(
+        text,
+      )
+    )
+      themes.push("CRITIQUE");
+    // APPLY - "In scenario X, which approach?" "How would X be applied?"
+    else if (
+      /in.*scenario|applied to|how would|in practice|implement|use case|when.*should/i.test(
+        text,
+      )
+    )
+      themes.push("APPLY");
+    // ASSERTION-REASON format
+    else if (/assertion.*reason|reason.*assertion/i.test(text))
+      themes.push("ASSERTION-REASON");
+    // STATEMENT-ANALYSIS - statement-based questions
+    else if (
+      /which.*statement|statement.*correct|statement.*incorrect|consider.*statements|which is\/are/i.test(
+        text,
+      )
+    )
+      themes.push("STATEMENT-ANALYSIS");
+    // NEGATIVE - NOT questions
+    else if (
+      /which is not|what is not|not part of|not implemented|does not|not a benefit|not a reason/i.test(
+        text,
+      )
+    )
+      themes.push("NEGATIVE");
+    // Fallback patterns
+    else if (/hype|marketing|claim.*evidence|evidence.*claim/i.test(text))
+      themes.push("HYPE-VS-REALITY");
+    else if (/colleague|coworker|manager|team|someone says/i.test(text))
+      themes.push("CRITICAL-EVALUATION");
+    else if (/ethic|bias|fair|discriminat/i.test(text))
+      themes.push("ETHICS-FAIRNESS");
+    else if (/legal|law|regulation|compliance|gdpr|eu ai act/i.test(text))
+      themes.push("LEGAL-COMPLIANCE");
+    else if (/research|paper|study|benchmark|published/i.test(text))
+      themes.push("RESEARCH-ANALYSIS");
+    else if (/vendor|provider|company claims/i.test(text))
+      themes.push("CLAIM-VERIFICATION");
+    else if (/algorithm|moe|mixture|ssm|mamba|architecture/i.test(text))
+      themes.push("ALGORITHM-INSIGHT");
+    else if (/agi|safety|alignment|existential|risk/i.test(text))
+      themes.push("AGI-SAFETY");
+    else if (/tool|framework|library|suited for/i.test(text))
+      themes.push("TOOL-RECOGNITION");
+    else if (/trend|industry|market|growing|emerging/i.test(text))
+      themes.push("TREND-AWARENESS");
+    else if (/debug|error|fix|issue|problem/i.test(text)) themes.push("DEBUG");
+
+    // Topic/subject detection - extract key technical terms
+    const topicPatterns = [
+      /\b(rag|retrieval.augmented)\b/i,
+      /\b(fine.?tun|finetuning)\b/i,
+      /\b(prompt|prompting)\b/i,
+      /\b(hallucination|hallucinate)\b/i,
+      /\b(token|tokeniz)\b/i,
+      /\b(embedding|vector)\b/i,
+      /\b(transformer|attention)\b/i,
+      /\b(llm|large language model)\b/i,
+      /\b(gpt|claude|gemini|llama|mistral)\b/i,
+      /\b(training|train data)\b/i,
+      /\b(inference|deploy)\b/i,
+      /\b(context window|context length)\b/i,
+      /\b(temperature|top.?p|sampling)\b/i,
+      /\b(agent|agentic)\b/i,
+      /\b(multimodal|vision|image)\b/i,
+      /\b(chain.of.thought|cot|reasoning)\b/i,
+      /\b(benchmark|eval|mmlu|humaneval)\b/i,
+      /\b(open.?source|closed.?source)\b/i,
+      /\b(api|endpoint)\b/i,
+      /\b(cost|pricing|token cost)\b/i,
+      /\b(latency|speed|performance)\b/i,
+      /\b(safety|alignment|rlhf)\b/i,
+      /\b(bias|fairness)\b/i,
+      /\b(regulation|gdpr|eu ai act)\b/i,
+      /\b(chunking|chunk size)\b/i,
+      /\b(memory|context)\b/i,
+    ];
+
+    topicPatterns.forEach((pattern) => {
+      const match = text.match(pattern);
+      if (match) {
+        themes.push(`TOPIC:${match[0].toUpperCase()}`);
+      }
+    });
+
+    return themes;
+  };
+
+  // Check for duplicates
+  const allThemes: Map<string, number[]> = new Map();
+
+  questions.forEach((q, idx) => {
+    const themes = extractThemes(q);
+    themes.forEach((theme) => {
+      if (!allThemes.has(theme)) {
+        allThemes.set(theme, []);
+      }
+      allThemes.get(theme)!.push(idx + 1);
+    });
+  });
+
+  // Report duplicates as ERRORS
+  allThemes.forEach((questionNums, theme) => {
+    if (questionNums.length > 1) {
+      // Question types should not repeat more than twice
+      if (!theme.startsWith("TOPIC:") && questionNums.length > 2) {
+        errors.push(
+          `❌ Question type "${theme}" used ${questionNums.length} times (Q${questionNums.join(", Q")}) - max 2 allowed per quiz`,
+        );
+      }
+      // Topics should NOT repeat at all
+      if (theme.startsWith("TOPIC:") && questionNums.length > 1) {
+        const topicName = theme.replace("TOPIC:", "");
+        errors.push(
+          `❌ Topic "${topicName}" repeated in Q${questionNums.join(", Q")} - each question must cover a DIFFERENT topic`,
+        );
+      }
+    }
+  });
+
+  // Check if we have enough diversity (at least 5 different question types)
+  const questionTypes = Array.from(allThemes.keys()).filter(
+    (k) => !k.startsWith("TOPIC:"),
+  );
+  if (questionTypes.length < 5 && questions.length >= 10) {
+    errors.push(
+      `❌ Only ${questionTypes.length} question types used - need at least 5 different types (ANALYZE, EVALUATE, COMPARE, PREDICT, CAUSE-EFFECT, IDENTIFY, CRITIQUE, APPLY, NEGATIVE, etc.)`,
+    );
+  }
+
+  return errors;
+};
+
 export const validateQuizJSON = (
   jsonInput: string,
   moduleName: string,
@@ -867,9 +1146,18 @@ export const validateQuizJSON = (
         `❌ Q${qNum}: Question too short (${qText.length} chars, min ${VALIDATION_RULES.question.min})`,
       );
     }
-    if (qText.length > VALIDATION_RULES.question.max) {
+    // Detect statement-based questions (UPSC style) - allow higher character limit
+    const isStatementBased =
+      /consider the following|how many.*statements?|which.*statements?|assertion.*reason|statement.*(i|1|one)/i.test(
+        qText,
+      );
+    const maxQuestionLength = isStatementBased
+      ? VALIDATION_RULES.question.statementBased.max
+      : VALIDATION_RULES.question.max;
+
+    if (qText.length > maxQuestionLength) {
       errors.push(
-        `❌ Q${qNum}: Question too long (${qText.length} chars, max ${VALIDATION_RULES.question.max})`,
+        `❌ Q${qNum}: Question too long (${qText.length} chars, max ${maxQuestionLength}${isStatementBased ? " for statement-based" : ""})`,
       );
     }
 
@@ -969,8 +1257,9 @@ export const validateQuizJSON = (
     const recommended = calculateRecommendedTimeLimit(q, moduleName);
 
     // More lenient tolerance for round intervals [20, 25, 30, 35]
+    // More lenient time limit checking - only warn for extreme differences
     const isRoundInterval = [20, 25, 30, 35].includes(q.timeLimit);
-    const tolerance = isRoundInterval ? 7 : 5;
+    const tolerance = isRoundInterval ? 15 : 10; // Increased tolerance
 
     if (Math.abs(q.timeLimit - recommended) > tolerance) {
       warnings.push(
@@ -986,24 +1275,71 @@ export const validateQuizJSON = (
     (pos) => correctAnswerPositions.filter((p) => p === pos).length,
   );
   const hasUnused = distribution.some((count) => count === 0);
-  const hasOverused = distribution.some((count) => count > 4);
+  const hasOverused = distribution.some((count) => count > 3); // Tightened: max 3 per position
+  const hasUnderused = distribution.some((count) => count < 2 && count > 0); // Min 2 per position
 
   if (hasUnused) {
     const unused = distribution
       .map((c, i) => (c === 0 ? i + 1 : null))
       .filter(Boolean);
-    warnings.push(
-      `⚠️ Pattern exploit: Position(s) ${unused.join(", ")} never used - students can eliminate these`,
+    errors.push(
+      `❌ Pattern exploit: Position(s) ${unused.join(", ")} never used - each position must appear 2-3 times`,
     );
   }
 
   if (hasOverused) {
     const overused = distribution
-      .map((c, i) => (c > 4 ? `${i + 1} (${c}×)` : null))
+      .map((c, i) => (c > 3 ? `${i + 1} (${c}×)` : null))
+      .filter(Boolean);
+    errors.push(
+      `❌ Pattern exploit: Position(s) ${overused.join(", ")} overused - each position must appear 2-3 times max`,
+    );
+  }
+
+  if (hasUnderused) {
+    const underused = distribution
+      .map((c, i) => (c === 1 ? `${i + 1} (${c}×)` : null))
       .filter(Boolean);
     warnings.push(
-      `⚠️ Pattern exploit: Position(s) ${overused.join(", ")} overused - students can favor these`,
+      `⚠️ Pattern exploit: Position(s) ${underused.join(", ")} underused - should appear at least 2 times`,
     );
+  }
+
+  // Check for consecutive repeats (same position 3+ times in a row)
+  let maxConsecutive = 1;
+  let currentConsecutive = 1;
+  let consecutivePosition = correctAnswerPositions[0];
+  for (let i = 1; i < correctAnswerPositions.length; i++) {
+    if (correctAnswerPositions[i] === correctAnswerPositions[i - 1]) {
+      currentConsecutive++;
+      if (currentConsecutive > maxConsecutive) {
+        maxConsecutive = currentConsecutive;
+        consecutivePosition = correctAnswerPositions[i];
+      }
+    } else {
+      currentConsecutive = 1;
+    }
+  }
+
+  if (maxConsecutive >= 3) {
+    errors.push(
+      `❌ Pattern exploit: Position ${consecutivePosition} appears ${maxConsecutive} times consecutively - max 2 consecutive allowed`,
+    );
+  } else if (maxConsecutive === 2) {
+    // Find all consecutive pairs for warning
+    const consecutivePairs: string[] = [];
+    for (let i = 1; i < correctAnswerPositions.length; i++) {
+      if (correctAnswerPositions[i] === correctAnswerPositions[i - 1]) {
+        consecutivePairs.push(
+          `Q${i}-Q${i + 1}(pos ${correctAnswerPositions[i]})`,
+        );
+      }
+    }
+    if (consecutivePairs.length > 2) {
+      warnings.push(
+        `⚠️ Multiple consecutive repeats detected: ${consecutivePairs.join(", ")} - try to vary positions more`,
+      );
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -1013,6 +1349,8 @@ export const validateQuizJSON = (
   if (data && errors.length === 0) {
     warnings.push(...validateModelReferences(data));
     warnings.push(...validateHypeWords(data));
+    warnings.push(...validateQuantification(data));
+    warnings.push(...validateNaturalTone(data)); // Detect robotic/fragmented options
     warnings.push(...validateCodeSyntax(data));
     warnings.push(...validateCorrectAnswerLength(data));
   }
@@ -1038,6 +1376,9 @@ export const validateQuizJSON = (
 
     // NEW: Validate overall quiz specificity
     warnings.push(...validateQuizSpecificity(data.questions));
+
+    // STRICT: Validate theme/topic/type diversity (returns ERRORS, not warnings)
+    errors.push(...validateThemeDiversity(data.questions));
   }
 
   const isValid = errors.length === 0;
@@ -1046,7 +1387,9 @@ export const validateQuizJSON = (
     valid: isValid,
     errors,
     warnings,
-    data: isValid ? data : null,
+    // Always return data if JSON structure is valid (even with pattern errors)
+    // This allows showing Shuffle button to fix pattern issues
+    data: data,
   };
 };
 
@@ -1088,26 +1431,131 @@ export const shuffleOptions = (question: Question): Question => {
   };
 };
 
+/**
+ * SMART SHUFFLE - Guarantees balanced distribution
+ * - Each position (1-4) appears 2-3 times across 10 questions
+ * - No position appears 3+ times consecutively
+ * - Shuffles options within each question to achieve target positions
+ */
+export const smartShuffleQuiz = (quiz: QuizData): QuizData => {
+  const questions = [...quiz.questions];
+  const numQuestions = questions.length;
+
+  // Generate balanced target positions [2,3,2,3] or [3,2,3,2] distribution
+  // For 10 questions: each position should appear 2-3 times
+  const targetPositions: number[] = [];
+  const positionCounts = [0, 0, 0, 0]; // counts for positions 1,2,3,4
+
+  // First pass: assign positions ensuring balance and no 3+ consecutive
+  for (let i = 0; i < numQuestions; i++) {
+    // Get available positions (count < 3 and not causing 3 consecutive)
+    const available: number[] = [];
+    for (let pos = 1; pos <= 4; pos++) {
+      if (positionCounts[pos - 1] >= 3) continue; // Already at max
+
+      // Check for consecutive repeats
+      if (i >= 2) {
+        if (targetPositions[i - 1] === pos && targetPositions[i - 2] === pos) {
+          continue; // Would cause 3 consecutive
+        }
+      }
+      available.push(pos);
+    }
+
+    // Prefer underused positions
+    const minCount = Math.min(
+      ...positionCounts.filter((_, idx) => available.includes(idx + 1)),
+    );
+    const preferred = available.filter(
+      (pos) => positionCounts[pos - 1] === minCount,
+    );
+
+    // Random pick from preferred (or available if no preferred)
+    const choices = preferred.length > 0 ? preferred : available;
+    const chosen = choices[Math.floor(Math.random() * choices.length)] || 1;
+
+    targetPositions.push(chosen);
+    positionCounts[chosen - 1]++;
+  }
+
+  // Second pass: shuffle each question's options to achieve target position
+  const shuffledQuestions = questions.map((q, idx) => {
+    const targetPos = targetPositions[idx];
+    return shuffleToTargetPosition(q, targetPos);
+  });
+
+  return {
+    ...quiz,
+    questions: shuffledQuestions,
+  };
+};
+
+/**
+ * Shuffle a question's options so correct answer lands at target position
+ */
+const shuffleToTargetPosition = (
+  question: Question,
+  targetPosition: number,
+): Question => {
+  const options = [
+    question.answer1,
+    question.answer2,
+    question.answer3,
+    question.answer4,
+  ];
+
+  const correctIdx = question.correctAnswer - 1;
+  const correctText = options[correctIdx];
+
+  // Remove correct answer from options
+  const otherOptions = options.filter((_, i) => i !== correctIdx);
+
+  // Shuffle other options
+  const shuffledOthers = fisherYatesShuffle(otherOptions);
+
+  // Insert correct answer at target position
+  const targetIdx = targetPosition - 1;
+  const result = [...shuffledOthers];
+  result.splice(targetIdx, 0, correctText);
+
+  return {
+    ...question,
+    answer1: result[0],
+    answer2: result[1],
+    answer3: result[2],
+    answer4: result[3],
+    correctAnswer: targetPosition,
+  };
+};
+
 export const generateTableData = (quiz: QuizData): string[][] => {
+  // Sanitize text for TSV: remove newlines, tabs that break Excel cells
+  const sanitize = (text: string): string => {
+    return (text || "")
+      .replace(/[\r\n]+/g, " ") // Replace newlines with space
+      .replace(/\t/g, " ") // Replace tabs with space
+      .replace(/\s+/g, " ") // Collapse multiple spaces
+      .trim();
+  };
+
   return quiz.questions.map((q) => [
-    q.id,
-    q.question,
-    q.answer1,
-    q.answer2,
-    q.answer3,
-    q.answer4,
-    q.answer5,
-    q.answer6,
-    q.answer7,
-    q.answer8,
-    q.answer9,
+    sanitize(q.id),
+    sanitize(q.question),
+    sanitize(q.answer1),
+    sanitize(q.answer2),
+    sanitize(q.answer3),
+    sanitize(q.answer4),
+    sanitize(q.answer5),
+    sanitize(q.answer6),
+    sanitize(q.answer7),
+    sanitize(q.answer8),
+    sanitize(q.answer9),
     String(q.correctAnswer),
     String(q.minPoints),
     String(q.maxPoints),
-    q.explanation,
+    sanitize(q.explanation),
     String(q.timeLimit),
-    q.imageUrl,
-    // 17 columns matching COLUMN_HEADERS: id first, then all question fields
+    sanitize(q.imageUrl),
   ]);
 };
 
@@ -1138,8 +1586,8 @@ export interface ParsedTSVQuestion {
   correctAnswer: number; // 1-4
   explanation: string;
   timeLimit: number;
-  minPoints: number;
-  maxPoints: number;
+  minPoints: string;
+  maxPoints: string;
   imageUrl: string;
 }
 
@@ -1286,9 +1734,9 @@ export const parseTSVToQuestions = (
           ? parsedTimeLimit
           : 25;
 
-      // Parse points (default to 0)
-      const parsedMinPoints = parseInt(minPoints) || 0;
-      const parsedMaxPoints = parseInt(maxPoints) || 0;
+      // Points: Keep as empty string (Discord bot auto-calculates)
+      const finalMinPoints = minPoints?.trim() || "";
+      const finalMaxPoints = maxPoints?.trim() || "";
 
       // Create parsed question
       const parsedQuestion: ParsedTSVQuestion = {
@@ -1298,8 +1746,8 @@ export const parseTSVToQuestions = (
         correctAnswer: finalCorrectAnswer,
         explanation: explanation ? explanation.trim() : "",
         timeLimit: finalTimeLimit,
-        minPoints: parsedMinPoints,
-        maxPoints: parsedMaxPoints,
+        minPoints: finalMinPoints,
+        maxPoints: finalMaxPoints,
         imageUrl: imageUrl ? imageUrl.trim() : "",
       };
 
@@ -1369,11 +1817,33 @@ export const calculateCorrectAnswerDistribution = (quiz: QuizData) => {
 
 /**
  * Checks if answer distribution is unbalanced (shuffle recommended)
- * Returns true if any position >4 or <1 (creates exploitable patterns)
+ * Returns true if:
+ * - Any position >3 times (max 3 per position for 10 questions)
+ * - Any position <1 times (all positions must be used)
+ * - Same position appears 3+ times consecutively
  */
 export const isDistributionUnbalanced = (quiz: QuizData): boolean => {
-  const { counts } = calculateCorrectAnswerDistribution(quiz);
-  return counts.some((c) => c > 4 || c < 1);
+  const { counts, pattern } = calculateCorrectAnswerDistribution(quiz);
+
+  // Check distribution counts (each position should appear 2-3 times)
+  const hasUnbalancedCounts = counts.some((c) => c > 3 || c < 1);
+
+  // Check for consecutive repeats (3+ in a row)
+  let maxConsecutive = 1;
+  let currentConsecutive = 1;
+  for (let i = 1; i < pattern.length; i++) {
+    if (pattern[i] === pattern[i - 1]) {
+      currentConsecutive++;
+      if (currentConsecutive > maxConsecutive) {
+        maxConsecutive = currentConsecutive;
+      }
+    } else {
+      currentConsecutive = 1;
+    }
+  }
+  const hasConsecutiveRepeats = maxConsecutive >= 3;
+
+  return hasUnbalancedCounts || hasConsecutiveRepeats;
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1494,6 +1964,176 @@ export const validateHypeWords = (quiz: QuizData): string[] => {
           `⚠️ Q${qNum}: Marketing buzzword "${word}" detected - use factual language instead`,
         );
       }
+    });
+  });
+
+  return warnings;
+};
+
+/**
+ * Validates that options are natural (not robotic/fragmented)
+ * Detects AI-generated patterns that break grammatical flow
+ */
+export const validateNaturalTone = (quiz: QuizData): string[] => {
+  const warnings: string[] = [];
+
+  // Patterns that indicate robotic/fragmented options
+  const roboticPatterns = [
+    // Noun-phrase fragments without verbs
+    /^[A-Z][a-z]+(-[a-z]+)?\s+(priority|focus|approach|obsolete|gone|declining)$/i,
+    // Single adjective + noun without article/verb
+    /^[A-Z][a-z]+\s+[a-z]+$/,
+    // "X gone" or "X obsolete" patterns
+    /^[A-Z][a-z]+(\s+[a-z]+)?\s+(gone|obsolete|dead|finished|over)$/i,
+    // Noun + verb-ing without subject (unless it's a gerund phrase)
+    /^[A-Z][a-z]+\s+[a-z]+ing$/,
+  ];
+
+  // Allowed short options (statement-based, etc.)
+  const allowedShortPatterns = [
+    /^[1-4]\s*(only|and\s+[1-4])?$/i, // "1 only", "1 and 2"
+    /^both$/i,
+    /^neither$/i,
+    /^all$/i,
+    /^none$/i,
+    /^(true|false)$/i,
+    /^[A-D]$/i, // Single letter options
+  ];
+
+  quiz.questions.forEach((q, idx) => {
+    const qNum = idx + 1;
+    const question = q.question || "";
+    const options = [q.answer1, q.answer2, q.answer3, q.answer4].filter(
+      Boolean,
+    );
+
+    // Skip statement-based questions (they have special option formats)
+    const isStatementBased = /statement|assertion|reason|1\)|2\)/i.test(
+      question,
+    );
+    if (isStatementBased) return;
+
+    // Check each option
+    options.forEach((opt, optIdx) => {
+      if (!opt) return;
+      const trimmed = opt.trim();
+
+      // Skip allowed patterns
+      if (allowedShortPatterns.some((p) => p.test(trimmed))) return;
+
+      // Check for robotic patterns
+      const isRobotic = roboticPatterns.some((p) => p.test(trimmed));
+
+      // Check for fragmented options (< 4 words, no verb, ends in noun)
+      const words = trimmed.split(/\s+/);
+      const hasVerb =
+        /\b(is|are|was|were|has|have|does|do|will|can|should|may|might|enables?|allows?|provides?|requires?|causes?|leads?|makes?|helps?)\b/i.test(
+          trimmed,
+        );
+      const endsInFragmentedNoun =
+        words.length <= 3 && !hasVerb && /[a-z]$/.test(trimmed);
+
+      if (isRobotic || (endsInFragmentedNoun && words.length >= 2)) {
+        // Test: Can "Question? Option" form a natural sentence?
+        const combined = `${question.replace(/\?$/, "")}... ${trimmed}`;
+        warnings.push(
+          `⚠️ Q${qNum} Option ${optIdx + 1}: Fragmented/robotic "${trimmed}" - should complete question naturally`,
+        );
+      }
+    });
+  });
+
+  return warnings;
+};
+
+/**
+ * Validates that statements/options don't contain specific quantification
+ * UPSC Pattern: No exact percentages, specific numbers that aren't recallable
+ */
+export const validateQuantification = (quiz: QuizData): string[] => {
+  const warnings: string[] = [];
+
+  // Patterns that indicate problematic quantification
+  const quantificationPatterns = [
+    // Specific percentages
+    { pattern: /\d+(\.\d+)?%/, description: "specific percentage" },
+    // Exact time durations (3 seconds, 5 years, etc.) - but allow "20s", "25s" for time limits
+    {
+      pattern:
+        /\b\d+\s*(seconds?|minutes?|hours?|days?|weeks?|months?|years?)\b/i,
+      description: "exact time duration",
+    },
+    // Exact counts in context (but allow statement references like "1 only")
+    {
+      pattern:
+        /\b(only\s+)?\d+\s+(times?|instances?|cases?|examples?|factors?|reasons?|steps?)\b/i,
+      description: "exact count",
+    },
+    // Specific dollar amounts
+    {
+      pattern: /\$\d+(\.\d+)?(\s*(million|billion|trillion))?/i,
+      description: "specific dollar amount",
+    },
+    // Ranges with specific numbers
+    { pattern: /\d+-\d+%/, description: "percentage range" },
+    {
+      pattern: /\b\d+(\.\d+)?\s*-\s*\d+(\.\d+)?%/,
+      description: "percentage range",
+    },
+  ];
+
+  // Allowed patterns (don't flag these)
+  const allowedPatterns = [
+    /^[1-4]\s*only$/i, // "1 only", "2 only" - statement options
+    /^both$/i, // "Both" - statement option
+    /^neither$/i, // "Neither" - statement option
+    /\b(Q\d+|answer\d+)\b/i, // Question/answer references
+    /\b(option\s*)?[1-4]\b/i, // Option references
+    /\b(20|25|30|35)s?\b/, // Time limit values
+  ];
+
+  quiz.questions.forEach((q, idx) => {
+    const qNum = idx + 1;
+
+    // Check question text
+    const questionText = q.question || "";
+    quantificationPatterns.forEach(({ pattern, description }) => {
+      const matches = questionText.match(pattern);
+      if (matches) {
+        // Check if it's an allowed pattern
+        const isAllowed = allowedPatterns.some((ap) => ap.test(matches[0]));
+        if (!isAllowed) {
+          warnings.push(
+            `⚠️ Q${qNum}: Contains ${description} "${matches[0]}" - use relative terms (approximately, significant, minimal)`,
+          );
+        }
+      }
+    });
+
+    // Check options (but skip statement reference options like "1 only")
+    const options = [q.answer1, q.answer2, q.answer3, q.answer4].filter(
+      Boolean,
+    );
+    options.forEach((opt, optIdx) => {
+      if (!opt) return;
+
+      // Skip if it's a statement reference option
+      const isStatementOption = allowedPatterns.some((ap) =>
+        ap.test(opt.trim()),
+      );
+      if (isStatementOption) return;
+
+      quantificationPatterns.forEach(({ pattern, description }) => {
+        const matches = opt.match(pattern);
+        if (matches) {
+          const isAllowed = allowedPatterns.some((ap) => ap.test(matches[0]));
+          if (!isAllowed) {
+            warnings.push(
+              `⚠️ Q${qNum} Option ${optIdx + 1}: Contains ${description} "${matches[0]}" - use relative terms`,
+            );
+          }
+        }
+      });
     });
   });
 
