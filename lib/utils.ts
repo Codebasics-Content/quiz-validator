@@ -77,11 +77,11 @@ export const VALIDATION_RULES = {
   },
   // Known deprecated model patterns (warn users)
   deprecatedPatterns: [
-    /^claude-3-(?!5)/i,           // claude-3-* but not claude-3-5-*
-    /^gpt-3\.5/i,                 // gpt-3.5-*
-    /^gpt-4\.5/i,                 // gpt-4.5-* (preview)
-    /^o1-/i,                      // o1-* models
-    /^gemini-1\.[05]/i,           // gemini-1.0-* and gemini-1.5-*
+    /^claude-3-(?!5)/i, // claude-3-* but not claude-3-5-*
+    /^gpt-3\.5/i, // gpt-3.5-*
+    /^gpt-4\.5/i, // gpt-4.5-* (preview)
+    /^o1-/i, // o1-* models
+    /^gemini-1\.[05]/i, // gemini-1.0-* and gemini-1.5-*
   ],
 };
 
@@ -778,10 +778,9 @@ export const validateQuizJSON = (
     data = JSON.parse(cleanedInput);
   } catch (e) {
     // Provide detailed error message with actual parse error
-    const parseError = e instanceof SyntaxError ? e.message : "Unknown parse error";
-    errors.push(
-      `❌ Invalid JSON format: ${parseError}`,
-    );
+    const parseError =
+      e instanceof SyntaxError ? e.message : "Unknown parse error";
+    errors.push(`❌ Invalid JSON format: ${parseError}`);
     errors.push(
       "💡 Common fixes: Check for missing commas, unescaped quotes, trailing commas, or special characters (use straight quotes, not curly quotes).",
     );
@@ -849,14 +848,16 @@ export const validateQuizJSON = (
         `❌ Q${qNum}: timeLimit must be a number, not "${typeof q.timeLimit}" (found: ${JSON.stringify(q.timeLimit)})`,
       );
     }
-    if (typeof q.minPoints !== "number") {
+    // minPoints and maxPoints: Allow empty strings ("") since Discord bot auto-calculates these
+    // Only error if non-empty string or non-number type (excluding empty string)
+    if (typeof q.minPoints !== "number" && q.minPoints !== "") {
       errors.push(
-        `❌ Q${qNum}: minPoints must be a number, not "${typeof q.minPoints}" (found: ${JSON.stringify(q.minPoints)})`,
+        `❌ Q${qNum}: minPoints must be a number or empty string (found: ${JSON.stringify(q.minPoints)})`,
       );
     }
-    if (typeof q.maxPoints !== "number") {
+    if (typeof q.maxPoints !== "number" && q.maxPoints !== "") {
       errors.push(
-        `❌ Q${qNum}: maxPoints must be a number, not "${typeof q.maxPoints}" (found: ${JSON.stringify(q.maxPoints)})`,
+        `❌ Q${qNum}: maxPoints must be a number or empty string (found: ${JSON.stringify(q.maxPoints)})`,
       );
     }
 
@@ -1393,20 +1394,21 @@ export const validateModelReferences = (quiz: QuizData): string[] => {
 
     // Regex for AI model patterns: gpt-4, claude-3, gemini-2.5, o3, etc.
     const modelMatches =
-      content.match(/\b(?:gpt-[\d.]+[-\w]*|claude-[\w.-]+|gemini-[\d.]+-?\w*|o[1-4](?:-\w+)?)\b/gi) ||
-      [];
+      content.match(
+        /\b(?:gpt-[\d.]+[-\w]*|claude-[\w.-]+|gemini-[\d.]+-?\w*|o[1-4](?:-\w+)?)\b/gi,
+      ) || [];
 
     modelMatches.forEach((match) => {
       const normalized = match.toLowerCase().trim();
 
       // Check if matches any valid production pattern
-      const isValidPattern = Object.values(modelPatterns).some(
-        (pattern) => pattern.test(normalized)
+      const isValidPattern = Object.values(modelPatterns).some((pattern) =>
+        pattern.test(normalized),
       );
 
       // Check if matches deprecated pattern
-      const isDeprecated = deprecatedPatterns.some(
-        (pattern) => pattern.test(normalized)
+      const isDeprecated = deprecatedPatterns.some((pattern) =>
+        pattern.test(normalized),
       );
 
       if (isDeprecated) {
@@ -1443,11 +1445,17 @@ export const validateCorrectAnswerLength = (quiz: QuizData): string[] => {
     const maxLength = Math.max(...lengths);
     const minLength = Math.min(...lengths);
 
-    if (correctLength === maxLength && lengths.filter((l) => l === maxLength).length === 1) {
+    if (
+      correctLength === maxLength &&
+      lengths.filter((l) => l === maxLength).length === 1
+    ) {
       longestCorrectCount++;
       lengthPositions.push(`Q${idx + 1}`);
     }
-    if (correctLength === minLength && lengths.filter((l) => l === minLength).length === 1) {
+    if (
+      correctLength === minLength &&
+      lengths.filter((l) => l === minLength).length === 1
+    ) {
       shortestCorrectCount++;
     }
   });
