@@ -11,8 +11,8 @@ export interface Question {
   answer8: string;
   answer9: string;
   correctAnswer: number;
-  minPoints: number;
-  maxPoints: number;
+  minPoints: string;
+  maxPoints: string;
   explanation: string;
   timeLimit: number;
   imageUrl: string;
